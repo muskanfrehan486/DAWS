@@ -1,0 +1,327 @@
+// Document Approval Workflow System — PostgreSQL schema (Prisma ORM v7)
+// Auth: Supabase Auth (auth.users). Application User.id mirrors auth.users.id.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum LoginRole {
+  ADMINISTRATOR
+  USER
+}
+
+enum ApprovalType {
+  REVIEWER
+  APPROVER
+  FINAL_APPROVER
+}
+
+enum DocumentStatus {
+  DRAFT
+  PENDING_REVIEW
+  REVISION_REQUESTED
+  REJECTED
+  APPROVED
+}
+
+enum WorkflowRunStatus {
+  IN_PROGRESS
+  APPROVED
+  REJECTED
+  SUPERSEDED
+}
+
+enum ApprovalActionType {
+  APPROVE
+  REQUEST_REVISION
+  REJECT
+}
+
+enum NotificationType {
+  APPROVAL_NEEDED
+  REVISION_REQUESTED
+  REJECTED
+  APPROVED
+  RESUBMITTED
+}
+
+
+enum AuditAction {
+  USER_CREATED
+  USER_UPDATED
+  PASSWORD_RESET
+  DEPARTMENT_CREATED
+  DEPARTMENT_UPDATED
+  SIGNATURE_UPLOADED
+  SIGNATURE_DEACTIVATED
+  DOCUMENT_CREATED
+  DOCUMENT_UPDATED
+  DOCUMENT_SUBMITTED
+  DOCUMENT_VERSION_UPLOADED
+  APPROVAL_CHAIN_CREATED
+  WORKFLOW_APPROVED
+  WORKFLOW_REVISION_REQUESTED
+  WORKFLOW_REJECTED
+  WORKFLOW_COMPLETED
+  NOTIFICATION_CREATED
+  EMAIL_SENT
+}
+
+// ---------------------------------------------------------------------------
+// Organization & Users
+// ---------------------------------------------------------------------------
+
+model Department {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique @db.VarChar(255)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  users User[]
+
+  @@index([isActive])
+  @@map("departments")
+}
+
+/// Application user profile. id MUST match Supabase auth.users.id (no local auth table).
+model User {
+  id           String    @id @db.Uuid
+  firstName    String    @map("first_name") @db.VarChar(100)
+  lastName     String    @map("last_name") @db.VarChar(100)
+  email        String    @unique @db.VarChar(255)
+  departmentId String    @map("department_id") @db.Uuid
+  loginRole    LoginRole @default(USER) @map("login_role")
+  signatureStoragePath String? @map("signature_storage_path")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  department Department @relation(fields: [departmentId], references: [id])
+
+  preparedDocuments       Document[]           @relation("DocumentPreparer")
+  assignedChainSteps      ApprovalChainStep[]
+  approvalActions         ApprovalAction[]
+  uploadedVersions        DocumentVersion[]
+  notifications           Notification[]
+  auditLogs               AuditLog[]
+
+  @@index([departmentId])
+  @@index([loginRole])
+  @@index([email])
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Documents & Versioning
+// ---------------------------------------------------------------------------
+
+model Document {
+  id                        String         @id @default(uuid()) @db.Uuid
+  title                     String         @db.VarChar(500)
+  description               String?        @db.Text
+  status                    DocumentStatus @default(DRAFT)
+  preparerId                String         @map("preparer_id") @db.Uuid
+  currentVersionNumber      Int            @default(0) @map("current_version_number")
+  currentWorkflowRunId      String?        @unique @map("current_workflow_run_id") @db.Uuid
+  revisionRequestedByActionId String?    @unique @map("revision_requested_by_action_id") @db.Uuid
+  submittedAt               DateTime?      @map("submitted_at") @db.Timestamptz(6)
+  approvedAt                DateTime?      @map("approved_at") @db.Timestamptz(6)
+  rejectedAt                DateTime?      @map("rejected_at") @db.Timestamptz(6)
+  createdAt                 DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  preparer                  User              @relation("DocumentPreparer", fields: [preparerId], references: [id])
+  currentWorkflowRun        WorkflowRun?      @relation("DocumentCurrentWorkflowRun", fields: [currentWorkflowRunId], references: [id])
+  revisionRequestedByAction ApprovalAction?   @relation("DocumentRevisionRequestedBy", fields: [revisionRequestedByActionId], references: [id])
+  versions                  DocumentVersion[]
+  approvalChain             ApprovalChain?
+  workflowRuns              WorkflowRun[]     @relation("DocumentWorkflowRuns")
+  notifications             Notification[]
+
+  @@index([preparerId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("documents")
+}
+
+/// Immutable version record. Never update file content — new upload = new row.
+model DocumentVersion {
+  id                   String   @id @default(uuid()) @db.Uuid
+  documentId           String   @map("document_id") @db.Uuid
+  versionNumber        Int      @map("version_number")
+  storagePath String @map("storage_path")  
+  uploadedById         String   @map("uploaded_by_id") @db.Uuid
+  uploadedAt           DateTime @default(now()) @map("uploaded_at") @db.Timestamptz(6)
+  notes                String?  @db.Text
+
+  document      Document         @relation(fields: [documentId], references: [id])
+  uploadedBy    User             @relation(fields: [uploadedById], references: [id])
+  workflowRuns  WorkflowRun[]
+  approvalActions ApprovalAction[]
+
+  @@unique([documentId, versionNumber])
+  @@index([documentId])
+  @@index([uploadedById])
+  @@map("document_versions")
+}
+
+// ---------------------------------------------------------------------------
+// Approval Chain (workflow roles live on steps, not users)
+// ---------------------------------------------------------------------------
+
+/// Ordered approval chain definition for a document. Reused across revision cycles.
+model ApprovalChain {
+  id         String   @id @default(uuid()) @db.Uuid
+  documentId String   @unique @map("document_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  document Document            @relation(fields: [documentId], references: [id])
+  steps    ApprovalChainStep[]
+  workflowRuns WorkflowRun[]
+
+  @@map("approval_chains")
+}
+
+model ApprovalChainStep {
+  id             String       @id @default(uuid()) @db.Uuid
+  chainId        String       @map("chain_id") @db.Uuid
+  stepOrder      Int          @map("step_order")
+  approvalType   ApprovalType @map("approval_type")
+  assignedUserId String       @map("assigned_user_id") @db.Uuid
+
+  chain          ApprovalChain    @relation(fields: [chainId], references: [id])
+  assignedUser   User             @relation(fields: [assignedUserId], references: [id])
+  approvalActions ApprovalAction[]
+
+  @@unique([chainId, stepOrder])
+  @@index([chainId])
+  @@index([assignedUserId])
+  @@map("approval_chain_steps")
+}
+
+// ---------------------------------------------------------------------------
+// Workflow Execution
+// ---------------------------------------------------------------------------
+
+/// One execution cycle per document version submission. Revision creates a new run; prior run becomes SUPERSEDED.
+model WorkflowRun {
+  id                String            @id @default(uuid()) @db.Uuid
+  documentId        String            @map("document_id") @db.Uuid
+  documentVersionId String            @map("document_version_id") @db.Uuid
+  chainId           String            @map("chain_id") @db.Uuid
+  status            WorkflowRunStatus @default(IN_PROGRESS)
+  currentStepOrder  Int               @default(1) @map("current_step_order")
+  startedAt         DateTime          @default(now()) @map("started_at") @db.Timestamptz(6)
+  endedAt           DateTime?         @map("ended_at") @db.Timestamptz(6)
+
+  document        Document        @relation("DocumentWorkflowRuns", fields: [documentId], references: [id])
+  documentVersion DocumentVersion @relation(fields: [documentVersionId], references: [id])
+  chain           ApprovalChain   @relation(fields: [chainId], references: [id])
+  actions         ApprovalAction[]
+  notifications   Notification[]
+  currentForDocument Document?    @relation("DocumentCurrentWorkflowRun")
+
+  @@index([documentId])
+  @@index([documentVersionId])
+  @@index([chainId])
+  @@index([status])
+  @@index([documentId, status])
+  @@map("workflow_runs")
+}
+
+/// Append-only action history. Never update or delete rows.
+model ApprovalAction {
+  id                   String             @id @default(uuid()) @db.Uuid
+  workflowRunId        String             @map("workflow_run_id") @db.Uuid
+  chainStepId          String             @map("chain_step_id") @db.Uuid
+  documentVersionId    String             @map("document_version_id") @db.Uuid
+  actorId              String             @map("actor_id") @db.Uuid
+  approvalType         ApprovalType       @map("approval_type")
+  action               ApprovalActionType
+  comment              String?            @db.Text
+  signaturePage        Int?               @map("signature_page")
+  signatureX           Float?             @map("signature_x")
+  signatureY           Float?             @map("signature_y")
+  signatureWidth       Float?             @map("signature_width")
+  signatureHeight      Float?             @map("signature_height")
+  signedPdfStoragePath String?            @map("signed_pdf_storage_path") @db.VarChar(1024)
+  ipAddress            String?            @map("ip_address") @db.VarChar(45)
+  createdAt            DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  workflowRun     WorkflowRun       @relation(fields: [workflowRunId], references: [id])
+  chainStep       ApprovalChainStep @relation(fields: [chainStepId], references: [id])
+  documentVersion DocumentVersion   @relation(fields: [documentVersionId], references: [id])
+  actor           User              @relation(fields: [actorId], references: [id])
+  revisionForDocument Document?     @relation("DocumentRevisionRequestedBy")
+
+  @@index([workflowRunId])
+  @@index([chainStepId])
+  @@index([documentVersionId])
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("approval_actions")
+}
+
+// ---------------------------------------------------------------------------
+// Notifications & Email
+// ---------------------------------------------------------------------------
+
+model Notification {
+  id            String           @id @default(uuid()) @db.Uuid
+  recipientId   String           @map("recipient_id") @db.Uuid
+  type          NotificationType
+  title         String           @db.VarChar(500)
+  message       String           @db.Text
+  documentId    String?          @map("document_id") @db.Uuid
+  workflowRunId String?          @map("workflow_run_id") @db.Uuid
+  isRead        Boolean          @default(false) @map("is_read")
+  readAt        DateTime?        @map("read_at") @db.Timestamptz(6)
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  recipient   User         @relation(fields: [recipientId], references: [id])
+  document    Document?    @relation(fields: [documentId], references: [id])
+  workflowRun WorkflowRun? @relation(fields: [workflowRunId], references: [id])
+
+  @@index([recipientId])
+  @@index([recipientId, isRead])
+  @@index([documentId])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// ---------------------------------------------------------------------------
+// Audit
+// ---------------------------------------------------------------------------
+
+/// Immutable audit trail for all important system operations.
+model AuditLog {
+  id         String      @id @default(uuid()) @db.Uuid
+  actorId    String?     @map("actor_id") @db.Uuid
+  action     AuditAction
+  entityType String      @map("entity_type") @db.VarChar(100)
+  entityId   String      @map("entity_id") @db.Uuid
+  oldValue   Json?       @map("old_value")
+  newValue   Json?       @map("new_value")
+  ipAddress  String?     @map("ip_address") @db.VarChar(45)
+  userAgent  String?     @map("user_agent") @db.VarChar(500)
+  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([actorId])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
