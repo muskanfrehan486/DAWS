@@ -114,6 +114,7 @@ model User {
   uploadedVersions        DocumentVersion[]
   notifications           Notification[]
   auditLogs               AuditLog[]
+  createdChains           ApprovalChain[]      @relation("ApprovalChainCreatedBy")
 
   @@index([departmentId])
   @@index([loginRole])
@@ -183,9 +184,11 @@ model DocumentVersion {
 model ApprovalChain {
   id         String   @id @default(uuid()) @db.Uuid
   documentId String   @unique @map("document_id") @db.Uuid
+  createdById String?  @map("created_by_id") @db.Uuid
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   document Document            @relation(fields: [documentId], references: [id])
+  createdBy   User?    @relation("ApprovalChainCreatedBy", fields: [createdById], references: [id])
   steps    ApprovalChainStep[]
   workflowRuns WorkflowRun[]
 
