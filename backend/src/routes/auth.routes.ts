@@ -8,6 +8,7 @@ import {
   signUpSchema,
   refreshTokenSchema,
 } from "../schemas/auth.schema";
+import { requireAdmin } from "../middleware/role";
 
 const router = Router();
 
@@ -29,8 +30,9 @@ router.post(
   })
 );
 
-router.post(
-  "/sign-up",
+router.post("/sign-up", 
+  authenticate, 
+  requireAdmin, 
   validate(signUpSchema),
   asyncHandler(async (req, res) => {
     const result = await authService.signUp(req.body);
@@ -46,5 +48,21 @@ router.post(
     res.json(result);
   })
 );
+
+router.post("/create-admin",authenticate, requireAdmin, async (_req, res) => {
+  try {
+    const admin = await authService.createAdmin();
+
+    res.json({
+      message: "Admin created",
+      admin,
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      error: error instanceof Error ? error.message : error,
+    });
+  }
+});
 
 export default router;

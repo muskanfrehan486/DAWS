@@ -4,6 +4,43 @@ import { errors } from "../lib/errors";
 import { LoginInput, SignUpInput, RefreshTokenInput } from "../schemas/auth.schema";
 
 class AuthService {
+  async createAdmin() {
+    const { data, error } =
+      await supabaseAdmin.auth.admin.createUser({
+        email: "admin@example.com",
+        password: "StrongPassword123!",
+        email_confirm: true,
+      });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const authUser = data.user;
+
+    const department = await prisma.department.findFirst({
+      where: {
+        name: "Human Resources",
+      },
+    });
+
+    if (!department) {
+      throw new Error("Department not found");
+    }
+
+    const user = await prisma.user.create({
+      data: {
+        id: authUser.id,
+        firstName: "Admin",
+        lastName: "User",
+        email: authUser.email!,
+        departmentId: department.id,
+        loginRole: "ADMINISTRATOR",
+      },
+    });
+
+    return user;
+  }
   async login(input: LoginInput) {
     const { data, error } = await supabaseAnon.auth.signInWithPassword({
       email: input.email,

@@ -2,19 +2,18 @@ import express from "express";
 import { env } from "./lib/env";
 import { prisma } from "./prisma";
 import { errorHandler } from "./middleware/errorHandler";
+
 import authRoutes from "./routes/auth.routes";
 import usersRoutes from "./routes/users.routes";
+import adminRoutes from "./routes/admin.routes";
+
 
 const app = express();
-
 app.use(express.json());
-
-app.get("/health", (_req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
-});
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", usersRoutes);
+app.use("/api/admin", adminRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({ error: "Route not found" });
