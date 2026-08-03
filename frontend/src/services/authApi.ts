@@ -1,0 +1,80 @@
+import type { UserRole } from '../types/user.ts'
+
+const TOKEN_STORAGE_KEY = 'docflow_auth_token'
+
+export type LoginResponse = {
+  accessToken: string
+  refreshToken: string
+  user: {
+    id: string
+    email: string
+    role: UserRole
+  }
+}
+
+function normalizeUserRole(role: string): UserRole {
+  return role?.toLowerCase() === 'administrator' ? 'ADMINISTRATOR' : 'USER'
+}
+
+export function getAuthToken() {
+  return localStorage.getItem(TOKEN_STORAGE_KEY)
+}
+
+export function setAuthToken(token: string | null) {
+  if (token) {
+    localStorage.setItem(TOKEN_STORAGE_KEY, token)
+  } else {
+    localStorage.removeItem(TOKEN_STORAGE_KEY)
+  }
+}
+
+export function authHeaders(): HeadersInit {
+  const token = getAuthToken();
+
+  return token
+    ? { Authorization: `Bearer ${token}` }
+    : {};
+}
+
+export async function login(email: string, password: string) {
+  const res = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  })
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error(data?.message || data?.error || 'Login failed')
+  }
+
+  const payload = await res.json()
+  const result: LoginResponse = {
+    accessToken: payload.accessToken,
+    refreshToken: payload.refreshToken,
+    user: {
+      id: payload.user?.id,
+      email: payload.user?.email,
+      role: normalizeUserRole(payload.user?.role),
+    },
+  }
+
+  setAuthToken(result.accessToken)
+  return result
+}
+
+export async function getMe() {
+  const res = await fetch('/api/auth/me', {
+    headers: { ...authHeaders() },
+  })
+  if (!res.ok) {
+    throw new Error('Failed to load current user')
+  }
+
+  const data = await res.json()
+  return {
+    id: data.id,
+    email: data.email,
+    role: normalizeUserRole(data.loginRole),
+  } as { id: string; email: string; role: UserRole }
+}

@@ -1,3 +1,5 @@
+import { fetchUsers } from "../services/AdminApi";
+
 export type DocumentStatus =
   | 'draft'
   | 'pending_review'
@@ -82,19 +84,17 @@ export const CURRENT_USER = {
   department: 'Finance',
 };
 
-export const USERS: User[] = [
-  { id: 'u1', name: 'Sarah Mitchell', email: 'sarah.mitchell@corp.com', role: 'administrator', department: 'IT', status: 'active', lastLogin: '2025-01-24 09:15', initials: 'SM' },
-  { id: 'u2', name: 'Ahmed Al-Rashid', email: 'ahmed.alrashid@corp.com', role: 'administrator', department: 'Finance', status: 'active', lastLogin: '2025-01-24 08:42', initials: 'AA' },
-  { id: 'u3', name: 'Jennifer Park', email: 'jennifer.park@corp.com', role: 'user', department: 'HR', status: 'active', lastLogin: '2025-01-23 17:30', initials: 'JP' },
-  { id: 'u4', name: 'Marcus Thompson', email: 'marcus.thompson@corp.com', role: 'user', department: 'Legal', status: 'active', lastLogin: '2025-01-24 10:05', initials: 'MT' },
-  { id: 'u5', name: 'Priya Sharma', email: 'priya.sharma@corp.com', role: 'user', department: 'Operations', status: 'active', lastLogin: '2025-01-22 14:20', initials: 'PS' },
-  { id: 'u6', name: 'Robert Chen', email: 'robert.chen@corp.com', role: 'user', department: 'Procurement', status: 'active', lastLogin: '2025-01-24 11:00', initials: 'RC' },
-  { id: 'u7', name: 'Ali Hassan', email: 'ali.hassan@corp.com', role: 'user', department: 'Finance', status: 'active', lastLogin: '2025-01-23 09:00', initials: 'AH' },
-  { id: 'u8', name: 'Michael Torres', email: 'ceo@corp.com', role: 'administrator', department: 'Executive', status: 'active', lastLogin: '2025-01-24 07:30', initials: 'MT' },
-  { id: 'u9', name: 'David Kumar', email: 'david.kumar@corp.com', role: 'user', department: 'Engineering', status: 'inactive', lastLogin: '2025-01-10 16:00', initials: 'DK' },
-  { id: 'u10', name: 'Lisa Wang', email: 'lisa.wang@corp.com', role: 'user', department: 'Marketing', status: 'active', lastLogin: '2025-01-24 08:00', initials: 'LW' },
-  { id: 'u11', name: 'Carlos Mendez', email: 'carlos.mendez@corp.com', role: 'user', department: 'Sales', status: 'active', lastLogin: '2025-01-24 10:30', initials: 'CM' },
-];
+export const USERS: User[] = [];
+
+// export async function loadUsers() {
+//   try {
+//     const users = await fetchUsers();
+//     return users;
+//   } catch (error) {
+//     console.error(error);
+//     throw error;
+//   }
+// }
 
 export const DOCUMENTS: Document[] = [
   {
