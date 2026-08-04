@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { FileText, Eye, EyeOff, ArrowRight, Shield, Zap, CheckCircle } from 'lucide-react';
-
-type UserRole = 'administrator' | 'user';
+import { login } from '../services/authApi.ts';
+import type { UserRole } from '../types/user.ts';
 
 interface LoginPageProps {
   onLogin: (role: UserRole) => void;
@@ -19,14 +19,20 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     e.preventDefault();
     setError('');
     if (!username || !password) {
-      setError('Please enter your username and password.');
+      setError('Please enter your email and password.');
       return;
     }
+
     setLoading(true);
-    await new Promise(r => setTimeout(r, 900));
-    setLoading(false);
-    const role: UserRole = username.toLowerCase().includes('admin') ? 'administrator' : 'user';
-    onLogin(role);
+
+    try {
+      const result = await login(username, password);
+      onLogin(result.user.role);
+    } catch (err: any) {
+      setError(err?.message || 'Unable to sign in.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

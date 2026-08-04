@@ -50,6 +50,14 @@ class AuthService {
     if (error) {
       throw errors.unauthorized(error.message);
     }
+    const dbUser = await prisma.user.findUnique({
+      where: { id: data.user.id,},
+      select: { loginRole: true,},
+      });
+
+    if (!dbUser) {
+      throw errors.notFound("User profile not found");
+    }
 
     return {
       accessToken: data.session.access_token,
@@ -57,6 +65,7 @@ class AuthService {
       user: {
         id: data.user.id,
         email: data.user.email,
+        role: dbUser.loginRole,
       },
     };
   }
@@ -114,7 +123,7 @@ class AuthService {
       };
     } catch (error: any) {
       await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
-      
+
       if (error.code === "P2002") {
         throw errors.conflict("User with this email already exists");
       }
