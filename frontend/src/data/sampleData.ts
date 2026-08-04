@@ -84,17 +84,15 @@ export const CURRENT_USER = {
   department: 'Finance',
 };
 
-export const USERS: User[] = [];
-
-// export async function loadUsers() {
-//   try {
-//     const users = await fetchUsers();
-//     return users;
-//   } catch (error) {
-//     console.error(error);
-//     throw error;
-//   }
-// }
+export async function loadUsers() {
+  try {
+    const users = await fetchUsers();
+    return users;
+  } catch (error) {
+    console.error(error);
+    throw error;
+  }
+};
 
 export const DOCUMENTS: Document[] = [
   {

@@ -1,7 +1,7 @@
 import { prisma } from "../prisma";
 import { errors } from "../lib/errors";
 import { supabaseAdmin } from "../lib/supabase";
-import type { UpdateAdminUserInput } from "../schemas/admin.schema";
+import type { UpdateAdminUserInput, CreateAdminUserInput  } from "../schemas/admin.schema";
 
 class AdminService {
   async listUsers() {
@@ -26,6 +26,63 @@ class AdminService {
       },
     });
   }
+
+
+async createUser(input: CreateAdminUserInput) {
+  const department = await prisma.department.findUnique({
+    where: {
+      id: input.departmentId,
+    },
+  });
+
+  if (!department) {
+    throw errors.badRequest("Department not found");
+  }
+
+  const { data, error } = await supabaseAdmin.auth.admin.createUser({
+    email: input.email,
+    password: input.password,
+    email_confirm: true,
+  });
+
+  if (error) {
+    throw errors.badRequest(error.message);
+  }
+
+  const authUser = data.user;
+
+  if (!authUser) {
+    throw errors.internal("Failed to create authentication user");
+  }
+
+  const user = await prisma.user.create({
+    data: {
+      id: authUser.id,
+      email: input.email,
+      firstName: input.firstName,
+      lastName: input.lastName,
+      departmentId: input.departmentId,
+      loginRole: input.loginRole,
+    },
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      loginRole: true,
+      department: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+
+  return user;
+}
 
   async getUser(userId: string) {
     const user = await prisma.user.findUnique({
