@@ -4,7 +4,7 @@ import { requireAdmin } from "../middleware/role";
 import { validate } from "../middleware/validate";
 import { asyncHandler } from "../utils/asyncHandler";
 import { adminService } from "../services/admin.service";
-import { updateAdminUserSchema } from "../schemas/admin.schema";
+import { updateAdminUserSchema, createAdminUserSchema } from "../schemas/admin.schema";
 
 const router = Router();
 
@@ -35,6 +35,16 @@ router.patch(
   asyncHandler(async (req, res) => {
     const user = await adminService.updateUser(req.params.id as string, req.body);
     res.json(user);
+  })
+);
+
+router.post(
+  "/users",
+  requireAdmin,
+  validate(createAdminUserSchema),
+  asyncHandler(async (req, res) => {
+    const user = await adminService.createUser(req.body);
+    res.status(201).json(user);
   })
 );
 

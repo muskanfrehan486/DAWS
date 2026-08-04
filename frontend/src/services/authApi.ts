@@ -75,6 +75,8 @@ export async function getMe() {
   return {
     id: data.id,
     email: data.email,
+    firstName: data.firstName,
+    lastName: data.lastName,
     role: normalizeUserRole(data.loginRole),
   } as { id: string; email: string; role: UserRole }
 }

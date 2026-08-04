@@ -1,10 +1,11 @@
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import {
   LayoutDashboard, FileText, Clock, Upload, Bell, ClipboardList,
   User, LogOut, ChevronDown, Search, Menu, X,
 } from 'lucide-react';
 import { NOTIFICATIONS } from '../data/sampleData';
 import type { Page } from '../App';
+import { getMe } from '../services/authApi';
 
 interface AppShellProps {
   children: ReactNode;
@@ -28,6 +29,13 @@ export default function AppShell({ children, activePage, onNavigate, onLogout, s
   const [searchValue, setSearchValue] = useState('');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+      getMe()
+          .then(setCurrentUser)
+          .catch(console.error);
+  }, []);
 
   const unreadCount = NOTIFICATIONS.filter(n => !n.read).length;
   const pendingCount = 1;
@@ -169,12 +177,11 @@ export default function AppShell({ children, activePage, onNavigate, onLogout, s
                 onClick={() => setProfileOpen(!profileOpen)}
                 className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 transition-colors"
               >
-                <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                  AA
-                </div>
                 <div className="hidden sm:block text-left">
-                  <div className="text-sm font-semibold text-slate-800 leading-tight">Ahmed Al-Rashid</div>
-                  <div className="text-[10px] text-slate-400 leading-tight">Administrator</div>
+                  <div className="text-sm font-semibold text-slate-800 leading-tight">{currentUser
+        ? `${currentUser.firstName} ${currentUser.lastName}`
+        : "Loading..."}</div>
+                  <div className="text-[10px] text-slate-400 leading-tight">{currentUser?.role}</div>
                 </div>
                 <ChevronDown size={13} className="text-slate-400 hidden sm:block" />
               </button>
@@ -182,12 +189,14 @@ export default function AppShell({ children, activePage, onNavigate, onLogout, s
               {profileOpen && (
                 <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl shadow-xl border border-slate-200 py-1 z-50">
                   <div className="px-3 py-2 border-b border-slate-100 mb-1">
-                    <div className="text-xs font-semibold text-slate-800">Ahmed Al-Rashid</div>
-                    <div className="text-[10px] text-slate-400">ahmed.alrashid@corp.com</div>
+                    <div className="text-xs font-semibold text-slate-800">{currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "Loading..."}</div>
+                    <div className="text-[10px] text-slate-400">{currentUser?.email}</div>
                   </div>
-                  <button className="w-full text-left px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 flex items-center gap-2">
-                    <User size={13} /> Profile Settings
-                  </button>
+                  {showSidebar && (
+                    <button className="w-full text-left px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 flex items-center gap-2">
+                      <User size={13} /> Profile Settings
+                    </button>
+                  )}
                   <button
                     onClick={onLogout}
                     className="w-full text-left px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
