@@ -38,7 +38,7 @@ export default function Administration() {
         lastName: "",
         email: "",
         password: "",
-        departmentId: "",
+        departmentId: departments[0].id,
         role: "USER",
     });
 
@@ -56,7 +56,7 @@ export default function Administration() {
             lastName: "",
             email: "",
             password: "",
-            departmentId: "",
+            departmentId:departments[0].id,
             role: "USER",
         });
         setAddUserModal(true);
@@ -260,12 +260,11 @@ export default function Administration() {
                         <select
                             value={form.departmentId}
                             onChange={(e) =>
-                                setForm({
-                                    ...form,
-                                    departmentId: e.target.value,
-                                })
+                                setForm({ ...form, departmentId: e.target.value })
                             }
                         >
+                            <option value="">Select a department</option>
+
                             {departments.map((dept) => (
                                 <option key={dept.id} value={dept.id}>
                                     {dept.name}
