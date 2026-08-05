@@ -8,7 +8,7 @@ type AdminTab = 'users';
 
 const departments = [
     {
-        "id": "cb7ca422-9961-4dff-be4f-bec1399d7ec8",
+        "id": "3b824989-8cd8-4f2d-bd7f-693c5358c752",
         "name": "Human Resources"
     },
     {

@@ -21,11 +21,11 @@ CREATE TYPE "AuditAction" AS ENUM ('USER_CREATED', 'USER_UPDATED', 'PASSWORD_RES
 
 -- CreateTable
 CREATE TABLE "departments" (
-    "id" UUID NOT NULL,
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "name" VARCHAR(255) NOT NULL,
     "is_active" BOOLEAN NOT NULL DEFAULT true,
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMPTZ(6) NOT NULL,
+    "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
 
     CONSTRAINT "departments_pkey" PRIMARY KEY ("id")
 );
