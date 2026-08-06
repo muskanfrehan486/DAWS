@@ -6,6 +6,8 @@ import { errorHandler } from "./middleware/errorHandler";
 import authRoutes from "./routes/auth.routes";
 import usersRoutes from "./routes/users.routes";
 import adminRoutes from "./routes/admin.routes";
+import documentsRouter from "./routes/documents.routes";
+
 
 
 const app = express();
@@ -14,6 +16,7 @@ app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/documents", documentsRouter);
 
 app.use((_req, res) => {
   res.status(404).json({ error: "Route not found" });

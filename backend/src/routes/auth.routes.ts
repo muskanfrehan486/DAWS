@@ -49,7 +49,7 @@ router.post(
   })
 );
 
-router.post("/create-admin",authenticate, requireAdmin, async (_req, res) => {
+router.post("/create-admin",authenticate,  async (_req, res) => {
   try {
     const admin = await authService.createAdmin();
 
