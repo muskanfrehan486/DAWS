@@ -17,7 +17,7 @@ export const errors = {
   unauthorized: (message: string, code?: string) => 
     new AppError(401, message, code),
   
-  forbidden: (message: string, code?: string) => 
+  forbidden: (message: string, code?: string) =>    
     new AppError(403, message, code),
   
   notFound: (message: string, code?: string) => 

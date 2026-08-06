@@ -39,7 +39,8 @@ model User {
   preparedDocuments    Document[]          @relation("DocumentPreparer")
   notifications        Notification[]
   department           Department          @relation(fields: [departmentId], references: [id])
-
+  documentComments DocumentComment[]
+  
   @@index([departmentId])
   @@index([loginRole])
   @@index([email])
@@ -67,6 +68,7 @@ model Document {
   revisionRequestedByAction   ApprovalAction?   @relation("DocumentRevisionRequestedBy", fields: [revisionRequestedByActionId], references: [id])
   notifications               Notification[]
   workflowRuns                WorkflowRun[]     @relation("DocumentWorkflowRuns")
+  comments DocumentComment[]
 
   @@index([preparerId])
   @@index([status])
@@ -224,6 +226,22 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+model DocumentComment {
+  id         String   @id @default(uuid()) @db.Uuid
+  documentId String   @map("document_id") @db.Uuid
+  authorId   String   @map("author_id") @db.Uuid
+  comment    String
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  document Document @relation(fields: [documentId], references: [id])
+  author   User     @relation(fields: [authorId], references: [id])
+
+  @@index([documentId])
+  @@index([authorId])
+  @@index([documentId, createdAt])
+  @@map("document_comments")
 }
 
 enum LoginRole {

@@ -12,7 +12,7 @@ const departments = [
         "name": "Human Resources"
     },
     {
-        "id": "a615ef0c-ab20-4619-b63e-363f650a2073",
+        "id": "23be27d6-8a45-4822-ba84-19f3bcc64432",
         "name": "Finance"
     }
 ];

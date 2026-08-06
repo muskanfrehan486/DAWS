@@ -28,7 +28,18 @@ async function main() {
     },
   });
 
+  const department2 = await prisma.department.upsert({
+    where: {
+      name: "Finance",
+    },
+    update: {},
+    create: {
+      name: "Finance",
+    },
+  });
+
   console.log("✅ Department:", department.name);
+  console.log("✅ Department:", department2.name);
 
   // Look for existing auth user
   const { data: usersData, error: listError } =
