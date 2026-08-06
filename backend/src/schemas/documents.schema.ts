@@ -48,12 +48,63 @@ export const createDocumentSchema = z.object({
   }),
 });
 
-export const uploadVersionSchema = z.object({
+export const updateDocumentSchema = z.object({
   params: z.object({
     id: z.uuid("Invalid document id"),
   }),
+  body: z.object({
+    title: z.string().trim().min(1, "Title is required").max(500).optional(),
+    description: z
+      .string()
+      .trim()
+      .max(5000, "Description cannot exceed 5000 characters")
+      .optional()
+      .or(z.literal("")),
+    approvalChain: z
+      .array(approvalChainStepSchema)
+      .min(1, "At least one approval step is required")
+      .optional()
+      .superRefine(
+        (
+          steps: z.infer<typeof approvalChainStepSchema>[] | undefined,
+          ctx
+        ) => {
+          if (!steps) return;
+
+          const finalApprovers = steps.filter(
+            (step) =>
+              step.approvalType === ApprovalType.FINAL_APPROVER
+          );
+          if (finalApprovers.length !== 1) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: "Exactly one Final Approver is required",
+            });
+          }
+
+          const ids = steps.map((s) => s.userId);
+          if (new Set(ids).size !== ids.length) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: "Duplicate users are not allowed in the approval chain",
+            });
+          }
+
+          const lastStep = steps[steps.length - 1];
+          if (
+            lastStep &&
+            lastStep.approvalType !== ApprovalType.FINAL_APPROVER
+          ) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: "Final Approver must be the last step",
+            });
+          }
+        }
+      ),
+  }),
 });
 
-export type UploadVersionInput = z.infer<typeof uploadVersionSchema>["params"];
+export type UpdateDocumentInput = z.infer<typeof updateDocumentSchema>["body"];
 export type CreateDocumentInput = z.infer<typeof createDocumentSchema>["body"];
 export type ApprovalChainStepInput = z.infer<typeof approvalChainStepSchema>;
