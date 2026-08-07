@@ -10,6 +10,8 @@ import documentsRouter from "./routes/documents.routes";
 import commentsRouter from "./routes/comments.routes";
 import workflowRouter from "./routes/workflow.routes";
 import auditRouter from "./routes/audit.routes";
+import approvalRouter from "./routes/approval.routes";
+import notificationsRouter from "./routes/notifications.routes";
 
 
 
@@ -23,6 +25,8 @@ app.use("/api/documents", documentsRouter);
 app.use("/api", commentsRouter);
 app.use("/api", workflowRouter);
 app.use("/api", auditRouter);
+app.use("/api", approvalRouter);
+app.use("/api/notifications", notificationsRouter);
 
 app.use((_req, res) => {
   res.status(404).json({ error: "Route not found" });
