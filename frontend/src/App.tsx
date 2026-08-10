@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import LoginPage from './pages/LoginPage';
-import { setAuthToken } from './services/authApi.ts';
+import { getAuthToken, restoreSession, setAuthToken } from './services/authApi.ts';
 import Administration from './pages/AdminPage';
 import UserDashboard from './pages/UserDashboard';
 import AppShell from './components/AppShell.tsx';
@@ -10,6 +10,7 @@ import PendingApproval from './pages/PendingApproval.tsx';
 import SubmitDocument from './pages/SubmitDocument.tsx';
 import Notifications from './pages/Notifications.tsx';
 import AuditTrail from './pages/AuditPage.tsx';
+import DocumentDetail from './pages/DocDetailPage.tsx';
 
 export type Page =
   | 'dashboard'
@@ -23,11 +24,40 @@ export type Page =
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [activePage, setActivePage] = useState<Page>('dashboard');
-  // const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
+  const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
+  const [returnPage, setReturnPage] = useState<Page>('my-documents');
+
+  useEffect(() => {
+    if (!getAuthToken()) {
+      setAuthChecked(true);
+      return;
+    }
+
+    restoreSession()
+      .then(user => {
+        if (user) {
+          setLoggedIn(true);
+          setActivePage(user.role === 'ADMINISTRATOR' ? 'administration' : 'dashboard');
+        }
+      })
+      .finally(() => setAuthChecked(true));
+  }, []);
 
   const handleNavigate = (page: Page) => { 
     setActivePage(page);
+  };
+
+  const handleOpenDocument = (docId: string) => {
+    setReturnPage(activePage);
+    setSelectedDocId(docId);
+    setActivePage('document-details');
+  };
+
+  const handleCloseDocument = () => {
+    setSelectedDocId(null);
+    setActivePage(returnPage);
   };
 
   const handleLogin = (userRole: UserRole) => {
@@ -35,16 +65,19 @@ export default function App() {
     setActivePage(userRole === 'ADMINISTRATOR' ? 'administration' : 'dashboard');
   };
 
-  // const handleOpenDocument = (docId: string) => {
-  //   setSelectedDocId(docId);
-  //   setActivePage('document-details');
-  // };
-
   const handleLogout = () => {
     setAuthToken(null);
     setLoggedIn(false);
     setActivePage('dashboard');
   };
+
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#f3f6fb' }}>
+        <p className="text-sm text-slate-500">Loading...</p>
+      </div>
+    );
+  }
 
   if (!loggedIn) {
     return <LoginPage onLogin={handleLogin} />;
@@ -58,31 +91,42 @@ export default function App() {
         return (
           <UserDashboard
             onNavigate={handleNavigate}
-            onOpenDocument={() => {}}
+            onOpenDocument={handleOpenDocument}
           />
         );
         case 'my-documents':
           return (
             <DocumentPage
               onNavigate={handleNavigate}
-              onOpenDocument={() => {}}
+              onOpenDocument={handleOpenDocument}
             />
           );
         case 'pending-approvals':
           return (
             <PendingApproval
-            onOpenDocument={() => {}}
+              onOpenDocument={handleOpenDocument}
             />
           );
         case 'submit-document':
           return (
-            <SubmitDocument
-            />
+            <SubmitDocument onNavigate={handleNavigate} />
           );
         case 'notifications':
           return (
             <Notifications
-              onOpenDocument={() => {}}
+              onOpenDocument={handleOpenDocument}
+            />
+          );
+        case 'document-details':
+          if (!selectedDocId) {
+            return null;
+          }
+          return (
+            <DocumentDetail
+              documentId={selectedDocId}
+              returnPage={returnPage}
+              onNavigate={handleNavigate}
+              onBack={handleCloseDocument}
             />
           );
         case 'audit-trail':

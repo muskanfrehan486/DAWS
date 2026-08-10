@@ -24,6 +24,21 @@ router.get(
 );
 
 router.get(
+  "/:id/file",
+  authenticate,
+  asyncHandler(async (req, res) => {
+    const { buffer, fileName } = await documentsService.getDocumentFile(
+      req.params.id as string,
+      req.supabaseUserId!
+    );
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
+    res.send(buffer);
+  })
+);
+
+router.get(
   "/:id",
   authenticate,
   asyncHandler(async (req, res) => {

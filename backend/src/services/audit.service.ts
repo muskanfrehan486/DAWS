@@ -16,6 +16,7 @@ type CreateAuditLogInput = {
 };
 
 type AuditHistoryEntry = {
+  id: string;
   date: Date;
   time: Date;
   user: {
@@ -54,6 +55,7 @@ class AuditService {
 
   private mapActionToHistoryEntry(
     action: {
+      id: string;
       createdAt: Date;
       approvalType: string;
       action: string;
@@ -62,6 +64,7 @@ class AuditService {
     }
   ): AuditHistoryEntry {
     return {
+      id: action.id,
       date: action.createdAt,
       time: action.createdAt,
       user: action.actor,

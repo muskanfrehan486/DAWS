@@ -35,6 +35,9 @@ class StorageService {
   }
 
   async overwriteDocument(path: string, buffer: Buffer): Promise<string> {
+    // Remove first so we always update the same object instead of creating siblings.
+    await supabaseAdmin.storage.from(DOCUMENTS_BUCKET).remove([path]);
+
     const { error } = await supabaseAdmin.storage
       .from(DOCUMENTS_BUCKET)
       .upload(path, buffer, {

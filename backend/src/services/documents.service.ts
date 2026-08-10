@@ -2,6 +2,8 @@ import { randomUUID } from "crypto";
 import { prisma } from "../prisma";
 import { errors } from "../lib/errors";
 import { storageService } from "../lib/supabase.storage";
+import { ApprovalType } from "../generated/prisma/client";
+import { notificationsService } from "./notifications.service";
 import {
   CreateDocumentInput,
   UpdateDocumentInput,
@@ -106,6 +108,19 @@ class DocumentsService {
           workflowRunId: workflowRun.id,
         };
       });
+
+      const firstStep = approvalChain[0];
+      if (firstStep) {
+        const isReview = firstStep.approvalType === ApprovalType.REVIEWER;
+        await notificationsService.createNotification({
+          recipientId: firstStep.userId,
+          type: "APPROVAL_NEEDED",
+          title: isReview ? "Review Required" : "Approval Required",
+          message: `Document "${title}" requires your ${isReview ? "review" : "approval"}.`,
+          documentId,
+          workflowRunId: document.workflowRunId,
+        });
+      }
 
       return {
         message: "Document created successfully.",
@@ -243,6 +258,7 @@ class DocumentsService {
                     id: true,
                     stepOrder: true,
                     approvalType: true,
+                    assignedUserId: true,
                     assignedUser: {
                       select: {
                         id: true,
@@ -277,7 +293,7 @@ class DocumentsService {
         (step) => step.stepOrder === currentRun.currentStepOrder
       );
 
-      return currentStep?.assignedUser?.id === userId;
+      return currentStep?.assignedUserId === userId;
     });
 
     const documentsResult = filteredDocuments.map(({ currentWorkflowRun, ...rest }) => {
@@ -295,6 +311,12 @@ class DocumentsService {
               stepOrder: currentStep.stepOrder,
               approvalType: currentStep.approvalType,
               assignedUser: currentStep.assignedUser,
+            }
+          : null,
+        workflow: currentWorkflowRun
+          ? {
+              currentStepOrder: currentWorkflowRun.currentStepOrder,
+              totalSteps: currentWorkflowRun.chain.steps.length,
             }
           : null,
       };
@@ -339,6 +361,7 @@ class DocumentsService {
         },
         currentWorkflowRun: {
           include: {
+            documentVersion: true,
             chain: {
               include: {
                 steps: {
@@ -397,6 +420,23 @@ class DocumentsService {
             assignedUser: currentStep.assignedUser,
           }
         : null,
+    };
+  }
+
+  async getDocumentFile(documentId: string, userId: string) {
+    const document = await this.getDocumentById(documentId, userId);
+    const version =
+      document.currentWorkflowRun?.documentVersion ?? document.versions[0];
+
+    if (!version) {
+      throw errors.notFound("Document file not found");
+    }
+
+    const buffer = await storageService.downloadDocument(version.storagePath);
+
+    return {
+      buffer,
+      fileName: `document-${documentId.slice(0, 8)}-v${version.versionNumber}.pdf`,
     };
   }
 

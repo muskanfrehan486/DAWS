@@ -28,6 +28,20 @@ export function setAuthToken(token: string | null) {
   }
 }
 
+/** Validate stored token and return the current user, or null if unauthenticated. */
+export async function restoreSession() {
+  if (!getAuthToken()) {
+    return null
+  }
+
+  try {
+    return await getMe()
+  } catch {
+    setAuthToken(null)
+    return null
+  }
+}
+
 export function authHeaders(): HeadersInit {
   const token = getAuthToken();
 

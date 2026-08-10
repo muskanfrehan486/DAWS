@@ -2,9 +2,10 @@ import { type ReactNode, useEffect, useState } from 'react';
 import {
   LayoutDashboard, FileText, Clock, Upload, Bell, ClipboardList, LogOut, ChevronDown, Search, Menu, X, Settings,
 } from 'lucide-react';
-import { NOTIFICATIONS } from '../data/sampleData';
-import type { Page } from '../App';
 import { getMe } from '../services/authApi';
+import { useUnreadNotificationCount } from '../hooks/useNotifications';
+import { usePendingApprovals } from '../hooks/usePendingApprovals';
+import type { Page } from '../App';
 
 interface AppShellProps {
   children: ReactNode;
@@ -36,8 +37,9 @@ export default function AppShell({ children, activePage, onNavigate, onLogout, s
           .catch(console.error);
   }, []);
 
-  const unreadCount = NOTIFICATIONS.filter(n => !n.read).length;
-  const pendingCount = 1;
+  const { unreadCount: notificationUnreadCount } = useUnreadNotificationCount();
+  const { documents: pendingDocuments } = usePendingApprovals();
+  const pendingCount = pendingDocuments.length;
   const isAdmin = currentUser?.role === 'ADMINISTRATOR';
   const userInitials = currentUser
     ? `${currentUser.firstName?.[0] ?? ''}${currentUser.lastName?.[0] ?? ''}`.toUpperCase()
@@ -65,7 +67,7 @@ export default function AppShell({ children, activePage, onNavigate, onLogout, s
           const Icon = item.icon;
           const isActive = activePage === item.id;
           const badge = item.id === 'pending-approvals' ? pendingCount :
-                        item.id === 'notifications' ? unreadCount : 0;
+                        item.id === 'notifications' ? notificationUnreadCount : 0;
           return (
             <div key={item.id}>
               {item.dividerBefore && (
@@ -191,7 +193,7 @@ export default function AppShell({ children, activePage, onNavigate, onLogout, s
               aria-label="Notifications"
             >
               <Bell size={17} />
-              {unreadCount > 0 && (
+              {notificationUnreadCount > 0 && (
                 <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-blue-500 border-2 border-white" />
               )}
             </button>)}
