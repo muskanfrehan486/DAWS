@@ -1,81 +1,90 @@
 import {
-    FileText,
-    Upload,
-    ArrowRight,
-    Plus,
-    X,
-    ChevronDown,
-  } from 'lucide-react';
-  import { useRef, useState } from 'react';
-  
-  type ApprovalType = 'Reviewer' | 'Approver' | 'Final Approver';
-  
-  type ApprovalStep = {
-    id: string;
-    type: ApprovalType;
-    assignedUser: string;
-    instructions: string;
+  FileText,
+  Upload,
+  ArrowRight,
+  Plus,
+  X,
+  ChevronDown,
+  Loader2,
+} from 'lucide-react';
+import { useRef, useState } from 'react';
+import { createDocument } from '../services/documentsApi';
+import {
+  formatUserOptionLabel,
+  useAssignableUsers,
+} from '../hooks/useAssignableUsers';
+import {
+  APPROVAL_TYPE_OPTIONS,
+  MAX_PDF_SIZE_BYTES,
+  toApprovalChainPayload,
+  validateSubmitDocumentForm,
+  type ApprovalStepForm,
+} from '../utils/submitDocument';
+import type { Page } from '../App';
+
+function createEmptyStep(): ApprovalStepForm {
+  return {
+    id: crypto.randomUUID(),
+    approvalType: 'REVIEWER',
+    userId: '',
   };
+}
+
+export default function SubmitDocument({
+  onNavigate,
+}: {
+  onNavigate: (page: Page) => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { users, loading: usersLoading, error: usersError, refetch } =
+    useAssignableUsers();
+
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const [steps, setSteps] = useState<ApprovalStepForm[]>([createEmptyStep()]);
   
-  const APPROVAL_TYPES: ApprovalType[] = [
-    'Reviewer',
-    'Approver',
-    'Final Approver',
-  ];
-  
-  export default function SubmitDocument() {
-    const fileInputRef = useRef<HTMLInputElement>(null);
-  
-    const [title, setTitle] = useState('');
-    const [description, setDescription] = useState('');
-    const [file, setFile] = useState<File | null>(null);
-  
-    const [steps, setSteps] = useState<ApprovalStep[]>([
-      {
-        id: crypto.randomUUID(),
-        type: 'Reviewer',
-        assignedUser: '',
-        instructions: '',
-      },
-    ]);
-  
-    const addApprovalStep = () => {
-      setSteps(prev => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          type: 'Reviewer',
-          assignedUser: '',
-          instructions: '',
-        },
-      ]);
-    };
-  
-    const removeApprovalStep = (id: string) => {
-      setSteps(prev => prev.filter(step => step.id !== id));
-    };
-  
-    const updateStep = (
-      id: string,
-      field: keyof ApprovalStep,
-      value: string,
-    ) => {
-      setSteps(prev =>
-        prev.map(step =>
-          step.id === id
-            ? { ...step, [field]: value }
-            : step,
-        ),
-      );
-    };
-  
-    const handleFileChange = (
-      selectedFile?: File,
-    ) => {
-      if (!selectedFile) return;
-  
-      setFile(selectedFile);
-    };
+  const addApprovalStep = () => {
+    setSteps(prev => [...prev, createEmptyStep()]);
+  };
+
+  const removeApprovalStep = (id: string) => {
+    setSteps(prev => prev.filter(step => step.id !== id));
+  };
+
+  const updateStep = (
+    id: string,
+    field: keyof ApprovalStepForm,
+    value: string,
+  ) => {
+    setSteps(prev =>
+      prev.map(step =>
+        step.id === id ? { ...step, [field]: value } : step,
+      ),
+    );
+  };
+
+  const validateFile = (selectedFile: File): string | null => {
+    if (selectedFile.type !== 'application/pdf') {
+      return 'Only PDF files are allowed.';
+    }
+    if (selectedFile.size > MAX_PDF_SIZE_BYTES) {
+      return 'File size must not exceed 20 MB.';
+    }
+    return null;
+  };
+
+  const handleFileChange = (selectedFile?: File) => {
+    if (!selectedFile) return;
+
+    const error = validateFile(selectedFile);
+    setFileError(error);
+    setFile(error ? null : selectedFile);
+  };
   
     const handleDrop = (
       e: React.DragEvent<HTMLDivElement>,
@@ -89,29 +98,57 @@ import {
       }
     };
   
-    const handleSubmit = () => {
-      // Later connect this to your API:
-      //
-      // const formData = new FormData();
-      // formData.append('title', title);
-      // formData.append('description', description);
-      // formData.append('file', file);
-      // formData.append(
-      //   'approvalChain',
-      //   JSON.stringify(steps),
-      // );
-      //
-      // await createDocument(formData);
-  
-      console.log({
+  const handleSubmit = async () => {
+    setSubmitError(null);
+
+    const validationError = validateSubmitDocumentForm({ title, file, steps });
+    if (validationError) {
+      setSubmitError(validationError);
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      await createDocument({
         title,
         description,
-        file,
-        approvalChain: steps,
+        file: file!,
+        approvalChain: toApprovalChainPayload(steps),
       });
-    };
-  
+
+      onNavigate('my-documents');
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'Failed to submit document');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (usersLoading) {
     return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+      </div>
+    );
+  }
+
+  if (usersError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] p-6 text-center gap-3">
+        <p className="text-sm text-red-600">{usersError}</p>
+        <button
+          type="button"
+          onClick={refetch}
+          className="text-sm font-medium text-blue-600 hover:text-blue-700"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  return (
       <main
         className="
           w-full
@@ -133,7 +170,10 @@ import {
           mb-5
           sm:mb-6
         ">
-          <span className="text-slate-400">
+          <span
+            className="text-slate-400 cursor-pointer hover:text-slate-600"
+            onClick={() => onNavigate('dashboard')}
+          >
             Dashboard
           </span>
   
@@ -371,8 +411,7 @@ import {
                 text-slate-400
                 mt-0.5
               ">
-                Supported: PDF, Word (.doc/.docx),
-                Excel, PowerPoint
+                Supported format: PDF only (max 20 MB)
               </p>
             </div>
           </div>
@@ -409,15 +448,7 @@ import {
                 ref={fileInputRef}
                 type="file"
                 className="hidden"
-                accept="
-                  .pdf,
-                  .doc,
-                  .docx,
-                  .xls,
-                  .xlsx,
-                  .ppt,
-                  .pptx
-                "
+                accept=".pdf,application/pdf"
                 onChange={e =>
                   handleFileChange(
                     e.target.files?.[0],
@@ -520,15 +551,7 @@ import {
                     gap-1.5
                     mt-4
                   ">
-                    {[
-                      'PDF',
-                      'DOC',
-                      'DOCX',
-                      'XLS',
-                      'XLSX',
-                      'PPT',
-                      'PPTX',
-                    ].map(type => (
+                    {['PDF'].map(type => (
                       <span
                         key={type}
                         className="
@@ -551,8 +574,11 @@ import {
                     text-slate-400
                     mt-3
                   ">
-                    Maximum file size: 50 MB
+                    Maximum file size: 20 MB
                   </p>
+                  {fileError && (
+                    <p className="text-[11px] text-red-600 mt-2">{fileError}</p>
+                  )}
                 </>
               )}
             </div>
@@ -742,11 +768,11 @@ import {
   
                       <div className="relative">
                         <select
-                          value={step.type}
+                          value={step.approvalType}
                           onChange={e =>
                             updateStep(
                               step.id,
-                              'type',
+                              'approvalType',
                               e.target.value,
                             )
                           }
@@ -768,12 +794,12 @@ import {
                             focus:ring-blue-100
                           "
                         >
-                          {APPROVAL_TYPES.map(type => (
+                          {APPROVAL_TYPE_OPTIONS.map(option => (
                             <option
-                              key={type}
-                              value={type}
+                              key={option.value}
+                              value={option.value}
                             >
-                              {type}
+                              {option.label}
                             </option>
                           ))}
                         </select>
@@ -793,7 +819,7 @@ import {
                     </div>
   
                     {/* Assigned User */}
-                    <div>
+                    <div className="relative">
                       <label className="
                         block
                         text-xs
@@ -804,34 +830,50 @@ import {
                         Assigned User
                       </label>
   
-                      <input
-                        type="text"
-                        value={step.assignedUser}
+                      <select
+                        value={step.userId}
                         onChange={e =>
                           updateStep(
                             step.id,
-                            'assignedUser',
+                            'userId',
                             e.target.value,
                           )
                         }
-                        placeholder="
-                          Search and select user...
-                        "
                         className="
                           w-full
                           h-10
                           px-3
+                          pr-9
                           border
                           border-slate-200
                           rounded-lg
                           bg-white
                           text-sm
                           text-slate-700
-                          placeholder:text-slate-400
                           outline-none
+                          appearance-none
                           focus:border-blue-400
                           focus:ring-2
                           focus:ring-blue-100
+                        "
+                      >
+                        <option value="">Select a user...</option>
+                        {users.map(user => (
+                          <option key={user.id} value={user.id}>
+                            {formatUserOptionLabel(user)}
+                          </option>
+                        ))}
+                      </select>
+
+                      <ChevronDown
+                        size={14}
+                        className="
+                          absolute
+                          right-3
+                          top-1/2
+                          -translate-y-1/2
+                          text-slate-400
+                          pointer-events-none
                         "
                       />
                     </div>
@@ -872,6 +914,12 @@ import {
         </section>
   
         {/* Bottom actions */}
+        {submitError && (
+          <div className="mb-3 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+            {submitError}
+          </div>
+        )}
+
         <div className="
           flex
           flex-col-reverse
@@ -883,6 +931,7 @@ import {
           <button
             type="button"
             onClick={handleSubmit}
+            disabled={submitting}
             className="
               w-full
               sm:w-auto
@@ -900,14 +949,22 @@ import {
               justify-center
               gap-2
               transition-colors
+              disabled:opacity-50
+              disabled:cursor-not-allowed
             "
           >
-            <Upload size={15} />
-            Submit for Approval
+            {submitting ? (
+              <Loader2 size={15} className="animate-spin" />
+            ) : (
+              <Upload size={15} />
+            )}
+            {submitting ? 'Submitting...' : 'Submit for Approval'}
           </button>
-  
+
           <button
             type="button"
+            onClick={() => onNavigate('my-documents')}
+            disabled={submitting}
             className="
               w-full
               sm:w-auto
@@ -919,6 +976,7 @@ import {
               font-medium
               hover:bg-slate-100
               transition-colors
+              disabled:opacity-50
             "
           >
             Cancel

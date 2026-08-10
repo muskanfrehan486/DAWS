@@ -172,17 +172,26 @@ class ApprovalService {
     input: ApproveDocumentInput,
     ipAddress?: string
   ) {
-    const { document, run, currentStep, version, steps } =
+    const { document, run, currentStep, steps } =
       await this.loadAndValidateCurrentStep(documentId, actorId);
 
-    const pdfBuffer = await storageService.downloadDocument(version.storagePath);
+    const version = await prisma.documentVersion.findUnique({
+      where: { id: run.documentVersionId },
+    });
+
+    if (!version) {
+      throw errors.internal("Workflow document version not found.");
+    }
+
+    const storagePath = version.storagePath;
+    const pdfBuffer = await storageService.downloadDocument(storagePath);
     const signatureBuffer = this.decodeSignatureImage(input.signatureImage);
     const signedPdfBuffer = await this.embedSignatureInPdf(
       pdfBuffer,
       signatureBuffer,
       input
     );
-    await storageService.overwriteDocument(version.storagePath, signedPdfBuffer);
+    await storageService.overwriteDocument(storagePath, signedPdfBuffer);
 
     const isFinalStep =
       currentStep.approvalType === ApprovalType.FINAL_APPROVER;
@@ -204,6 +213,7 @@ class ApprovalService {
           signatureY: input.signatureY,
           signatureWidth: input.signatureWidth,
           signatureHeight: input.signatureHeight,
+          signedPdfStoragePath: storagePath,
           ipAddress: ipAddress ?? null,
         },
       });

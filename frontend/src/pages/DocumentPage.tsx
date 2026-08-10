@@ -7,12 +7,19 @@ import {
   GitBranch,
   ChevronDown,
   X,
+  Loader2,
 } from 'lucide-react';
 
-import { DOCUMENTS } from '../data/sampleData.ts';
 import StatusBadge from '../components/StatusBadge.tsx';
+import { useDocuments } from '../hooks/useDocuments';
+import { formatDocumentId } from '../utils/format';
+import {
+  computeDocumentListCounts,
+  filterDocuments,
+  type DocumentStatusFilter,
+} from '../utils/documentFilters';
 import type { Page } from '../App.tsx';
-import type { Document, DocumentStatus } from '../data/sampleData.ts';
+import type { DashboardDocument, DocumentStatus } from '../types/document';
 
 const FILE_ICONS: Record<string, { bg: string; label: string }> = {
   pdf: { bg: '#ef4444', label: 'PDF' },
@@ -21,13 +28,7 @@ const FILE_ICONS: Record<string, { bg: string; label: string }> = {
   pptx: { bg: '#ea580c', label: 'PPT' },
 };
 
-type FilterStatus =
-  | 'all'
-  | 'pending_review'
-  | 'pending_approval'
-  | 'approved'
-  | 'rejected'
-  | 'revision_requested';
+type FilterStatus = DocumentStatusFilter;
 
 function DocumentFileIcon({ fileType }: { fileType: string }) {
   const fi = FILE_ICONS[fileType] ?? FILE_ICONS.pdf;
@@ -50,7 +51,7 @@ function DocumentFileIcon({ fileType }: { fileType: string }) {
   );
 }
 
-function WorkflowProgress({ doc }: { doc: Document }) {
+function WorkflowProgress({ doc }: { doc: DashboardDocument }) {
   const progress =
     doc.totalSteps > 0
       ? Math.round((doc.currentStep / doc.totalSteps) * 100)
@@ -141,7 +142,7 @@ function MobileDocumentCard({
   doc,
   onOpen,
 }: {
-  doc: Document;
+  doc: DashboardDocument;
   onOpen: (id: string) => void;
 }) {
   return (
@@ -174,7 +175,7 @@ function MobileDocumentCard({
             mt-1
             truncate
           ">
-            {doc.id}
+            {formatDocumentId(doc.id)}
           </p>
         </div>
 
@@ -285,60 +286,49 @@ export default function MyDocuments({
   onNavigate: (page: Page) => void;
   onOpenDocument: (id: string) => void;
 }) {
+  const { documents, loading, error, refetch } = useDocuments();
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] =
-    useState<FilterStatus>('all');
+  const [statusFilter, setStatusFilter] = useState<FilterStatus>('all');
 
-  const filteredDocuments = useMemo(() => {
-    const query = search.trim().toLowerCase();
+  const filteredDocuments = useMemo(
+    () => filterDocuments(documents, search, statusFilter),
+    [documents, search, statusFilter],
+  );
 
-    return DOCUMENTS.filter(doc => {
-      const matchesSearch =
-        !query ||
-        doc.title.toLowerCase().includes(query) ||
-        doc.id.toLowerCase().includes(query) ||
-        doc.submittedBy.toLowerCase().includes(query) ||
-        doc.currentHolder.toLowerCase().includes(query);
+  const counts = useMemo(
+    () => computeDocumentListCounts(documents),
+    [documents],
+  );
 
-      const matchesStatus =
-        statusFilter === 'all' ||
-        doc.status === statusFilter;
-
-      return matchesSearch && matchesStatus;
-    });
-  }, [search, statusFilter]);
-
-  const counts = useMemo(() => {
-    return {
-      all: DOCUMENTS.length,
-
-      pending:
-        DOCUMENTS.filter(
-          d =>
-            d.status === 'pending_review' ||
-            d.status === 'pending_approval'
-        ).length,
-
-      approved:
-        DOCUMENTS.filter(d => d.status === 'approved').length,
-
-      rejected:
-        DOCUMENTS.filter(d => d.status === 'rejected').length,
-
-      revision:
-        DOCUMENTS.filter(
-          d => d.status === 'revision_requested'
-        ).length,
-    };
-  }, []);
-
-  const hasFilters =
-    search.length > 0 || statusFilter !== 'all';
+  const hasFilters = search.length > 0 || statusFilter !== 'all';
 
   const clearFilters = () => {
     setSearch('');
     setStatusFilter('all');
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] p-6 text-center gap-3">
+        <p className="text-sm text-red-600">{error}</p>
+        <button
+          type="button"
+          onClick={refetch}
+          className="text-sm font-medium text-blue-600 hover:text-blue-700"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="
@@ -437,7 +427,7 @@ export default function MyDocuments({
 
         <button
           type="button"
-          onClick={() => setStatusFilter('pending_review')}
+          onClick={() => setStatusFilter('pending')}
           className={`
             bg-white
             border
@@ -446,7 +436,7 @@ export default function MyDocuments({
             text-left
             transition-all
             ${
-              statusFilter === 'pending_review'
+              statusFilter === 'pending'
                 ? 'border-blue-400 ring-1 ring-blue-200'
                 : 'border-slate-200 hover:border-blue-300'
             }
@@ -676,6 +666,9 @@ export default function MyDocuments({
                 <option value="all">
                   All Statuses
                 </option>
+                <option value="pending">
+                  Pending
+                </option>
                 <option value="pending_review">
                   Pending Review
                 </option>
@@ -727,7 +720,7 @@ export default function MyDocuments({
                 font-medium
                 text-slate-600
               ">
-                {DOCUMENTS.length}
+                {documents.length}
               </span>{' '}
               documents
             </p>
@@ -785,10 +778,26 @@ export default function MyDocuments({
               text-slate-400
               mt-1
             ">
-              Try changing your search or filter.
+              {documents.length === 0
+                ? 'Submit a document to get started.'
+                : 'Try changing your search or filter.'}
             </p>
 
-            {hasFilters && (
+            {documents.length === 0 ? (
+              <button
+                type="button"
+                onClick={() => onNavigate('submit-document')}
+                className="
+                  mt-4
+                  text-xs
+                  font-medium
+                  text-blue-600
+                  hover:text-blue-700
+                "
+              >
+                Submit Document →
+              </button>
+            ) : hasFilters ? (
               <button
                 type="button"
                 onClick={clearFilters}
@@ -802,7 +811,7 @@ export default function MyDocuments({
               >
                 Clear filters
               </button>
-            )}
+            ) : null}
           </div>
         )}
 
@@ -915,7 +924,7 @@ export default function MyDocuments({
                             font-mono
                             mt-0.5
                           ">
-                            {doc.id}
+                            {formatDocumentId(doc.id)}
                           </p>
                         </div>
                       </div>

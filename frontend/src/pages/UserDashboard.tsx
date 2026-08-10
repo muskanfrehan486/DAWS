@@ -1,5 +1,3 @@
-
-import { useEffect, useMemo, useState } from 'react';
 import {
   FileText,
   CheckCircle,
@@ -8,12 +6,13 @@ import {
   AlertCircle,
   Eye,
   GitBranch,
+  Loader2,
 } from 'lucide-react';
-import { DOCUMENTS } from '../data/sampleData';
 import StatusBadge from '../components/StatusBadge.tsx';
-import { getMe } from '../services/authApi';
+import { useDashboardData } from '../hooks/useDashboardData';
+import { formatHeaderDate, formatDocumentId, getTimeGreeting } from '../utils/format';
 import type { Page } from '../App';
-import type { Document, DocumentStatus } from '../data/sampleData';
+import type { DashboardDocument, DocumentStatus } from '../types/document';
 
 const FILE_ICONS: Record<string, { bg: string; label: string }> = {
   pdf: { bg: '#ef4444', label: 'PDF' },
@@ -23,21 +22,11 @@ const FILE_ICONS: Record<string, { bg: string; label: string }> = {
 };
 
 function getGreeting(): string {
-  const hour = new Date().getHours();
-
-  if (hour < 12) return 'Good morning';
-  if (hour < 17) return 'Good afternoon';
-
-  return 'Good evening';
+  return getTimeGreeting();
 }
 
 function formatDate(): string {
-  return new Date().toLocaleDateString('en-US', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
+  return formatHeaderDate();
 }
 
 function ActionCard({
@@ -115,7 +104,7 @@ function DocumentFileIcon({ fileType }: { fileType: string }) {
   );
 }
 
-function WorkflowProgress({ doc }: { doc: Document }) {
+function WorkflowProgress({ doc }: { doc: DashboardDocument }) {
   const progress =
     doc.totalSteps > 0
       ? Math.round((doc.currentStep / doc.totalSteps) * 100)
@@ -197,7 +186,7 @@ function DocumentMobileCard({
   doc,
   onOpen,
 }: {
-  doc: Document;
+  doc: DashboardDocument;
   onOpen: (id: string) => void;
 }) {
   return (
@@ -225,7 +214,7 @@ function DocumentMobileCard({
           </button>
 
           <p className="text-[10px] sm:text-[11px] font-mono text-slate-400 mt-1 truncate">
-            {doc.id}
+            {formatDocumentId(doc.id)}
           </p>
         </div>
 
@@ -306,53 +295,33 @@ export default function UserDashboard({
   onNavigate: (page: Page) => void;
   onOpenDocument: (id: string) => void;
 }) {
-  const [userName, setUserName] = useState('there');
+  const { documents, stats, userName, loading, error, refetch } = useDashboardData();
 
-  useEffect(() => {
-    getMe()
-      .then(user => {
-        setUserName(`${user.firstName} ${user.lastName}`);
-      })
-      .catch(() => {
-        setUserName('there');
-      });
-  }, []);
+  const recent = documents.slice(0, 6);
+  const firstName = userName.split(' ')[0] || 'there';
 
-  const approved = DOCUMENTS.filter(
-    d => d.status === 'approved'
-  ).length;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+      </div>
+    );
+  }
 
-  const rejected = DOCUMENTS.filter(
-    d => d.status === 'rejected'
-  ).length;
-
-  const revision = DOCUMENTS.filter(
-    d => d.status === 'revision_requested'
-  ).length;
-
-  const myAction = 1;
-
-  const mySubmitted = DOCUMENTS.filter(
-    d => d.submittedBy === 'Ahmed Al-Rashid'
-  ).length;
-
-  const pendingDoc = DOCUMENTS.find(
-    d =>
-      d.status === 'pending_review' ||
-      d.status === 'pending_approval'
-  );
-
-  const recent = useMemo(
-    () =>
-      [...DOCUMENTS]
-        .sort(
-          (a, b) =>
-            new Date(b.lastUpdated).getTime() -
-            new Date(a.lastUpdated).getTime()
-        )
-        .slice(0, 6),
-    [],
-  );
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] p-6 text-center gap-3">
+        <p className="text-sm text-red-600">{error}</p>
+        <button
+          type="button"
+          onClick={refetch}
+          className="text-sm font-medium text-blue-600 hover:text-blue-700"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -379,7 +348,7 @@ export default function UserDashboard({
           </h1>
 
           <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">
-            {getGreeting()}, {userName.split(' ')[0]}. Here is your
+            {getGreeting()}, {firstName}. Here is your
             workflow overview.
           </p>
         </div>
@@ -399,7 +368,7 @@ export default function UserDashboard({
       </div>
 
       {/* Action required banner */}
-      {/* {myAction > 0 && (
+      {stats.awaitingMyAction > 0 && (
         <button
           type="button"
           className="
@@ -419,7 +388,7 @@ export default function UserDashboard({
             background: '#eff6ff',
             borderColor: '#93c5fd',
           }}
-          // onClick={() => onNavigate('pending-approvals')}
+          onClick={() => onNavigate('pending-approvals')}
         >
           <div className="
             w-9 h-9
@@ -438,8 +407,8 @@ export default function UserDashboard({
               text-blue-800
               leading-snug
             ">
-              {myAction} document
-              {myAction !== 1 ? 's' : ''} awaiting your action
+              {stats.awaitingMyAction} document
+              {stats.awaitingMyAction !== 1 ? 's' : ''} awaiting your action
             </p>
 
             <p className="
@@ -448,7 +417,7 @@ export default function UserDashboard({
               mt-1
               truncate
             ">
-              {pendingDoc?.title ??
+              {stats.pendingActionDocument?.title ??
                 'A document is pending your review'}
             </p>
 
@@ -463,7 +432,7 @@ export default function UserDashboard({
             </span>
           </div>
         </button>
-      )} */}
+      )}
 
       {/* Workflow summary */}
       <section>
@@ -487,7 +456,7 @@ export default function UserDashboard({
         ">
           <ActionCard
             label="Awaiting My Action"
-            value={myAction}
+            value={stats.awaitingMyAction}
             icon={AlertCircle}
             color="#2563eb"
             bg="#eff6ff"
@@ -496,7 +465,7 @@ export default function UserDashboard({
 
           <ActionCard
             label="My Submitted"
-            value={mySubmitted}
+            value={stats.mySubmitted}
             icon={FileText}
             color="#0f6cbd"
             bg="#e0f2fe"
@@ -506,7 +475,7 @@ export default function UserDashboard({
 
           <ActionCard
             label="Approved"
-            value={approved}
+            value={stats.approved}
             icon={CheckCircle}
             color="#059669"
             bg="#ecfdf5"
@@ -514,7 +483,7 @@ export default function UserDashboard({
 
           <ActionCard
             label="Rejected"
-            value={rejected}
+            value={stats.rejected}
             icon={XCircle}
             color="#dc2626"
             bg="#fef2f2"
@@ -522,7 +491,7 @@ export default function UserDashboard({
 
           <ActionCard
             label="Revision Pending"
-            value={revision}
+            value={stats.revisionPending}
             icon={RotateCcw}
             color="#7c3aed"
             bg="#f5f3ff"
@@ -588,13 +557,17 @@ export default function UserDashboard({
           md:hidden
           divide-y divide-slate-100
         ">
-          {recent.map(doc => (
-            <DocumentMobileCard
-              key={doc.id}
-              doc={doc}
-              onOpen={onOpenDocument}
-            />
-          ))}
+          {recent.length === 0 ? (
+            <p className="p-6 text-sm text-slate-400 text-center">No documents yet.</p>
+          ) : (
+            recent.map(doc => (
+              <DocumentMobileCard
+                key={doc.id}
+                doc={doc}
+                onOpen={onOpenDocument}
+              />
+            ))
+          )}
         </div>
 
         {/* Desktop table */}
@@ -636,7 +609,14 @@ export default function UserDashboard({
             </thead>
 
             <tbody>
-              {recent.map(doc => (
+              {recent.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-slate-400">
+                    No documents yet.
+                  </td>
+                </tr>
+              ) : (
+                recent.map(doc => (
                 <tr
                   key={doc.id}
                   className="
@@ -655,7 +635,7 @@ export default function UserDashboard({
                       px-2 py-0.5
                       rounded
                     ">
-                      {doc.id}
+                      {formatDocumentId(doc.id)}
                     </span>
                   </td>
 
@@ -742,7 +722,7 @@ export default function UserDashboard({
                     />
                   </td>
                 </tr>
-              ))}
+              )))}
             </tbody>
           </table>
         </div>

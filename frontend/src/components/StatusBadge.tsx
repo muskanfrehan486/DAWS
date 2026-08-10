@@ -1,4 +1,4 @@
-import type { DocumentStatus } from '../data/sampleData';
+import type { DocumentStatus } from '../types/document';
 
 const STATUS_CONFIG: Record<DocumentStatus, { label: string; className: string }> = {
   draft: {
