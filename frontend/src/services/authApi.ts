@@ -78,5 +78,5 @@ export async function getMe() {
     firstName: data.firstName,
     lastName: data.lastName,
     role: normalizeUserRole(data.loginRole),
-  } as { id: string; email: string; role: UserRole }
+  } as { id: string; email: string; firstName: string; lastName: string; role: UserRole }
 }

@@ -2,8 +2,14 @@ import { useState } from 'react';
 import LoginPage from './pages/LoginPage';
 import { setAuthToken } from './services/authApi.ts';
 import Administration from './pages/AdminPage';
+import UserDashboard from './pages/UserDashboard';
 import AppShell from './components/AppShell.tsx';
 import type { UserRole } from './types/user.ts';
+import DocumentPage from './pages/DocumentPage.tsx';
+import PendingApproval from './pages/PendingApproval.tsx';
+import SubmitDocument from './pages/SubmitDocument.tsx';
+import Notifications from './pages/Notifications.tsx';
+import AuditTrail from './pages/AuditPage.tsx';
 
 export type Page =
   | 'dashboard'
@@ -14,7 +20,6 @@ export type Page =
   | 'notifications'
   | 'audit-trail'
   | 'administration'
-  | 'profile';
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
@@ -49,8 +54,48 @@ export default function App() {
     switch (activePage) {
       case 'administration':
         return <Administration />;
+      case 'dashboard':
+        return (
+          <UserDashboard
+            onNavigate={handleNavigate}
+            onOpenDocument={() => {}}
+          />
+        );
+        case 'my-documents':
+          return (
+            <DocumentPage
+              onNavigate={handleNavigate}
+              onOpenDocument={() => {}}
+            />
+          );
+        case 'pending-approvals':
+          return (
+            <PendingApproval
+            onOpenDocument={() => {}}
+            />
+          );
+        case 'submit-document':
+          return (
+            <SubmitDocument
+            />
+          );
+        case 'notifications':
+          return (
+            <Notifications
+              onOpenDocument={() => {}}
+            />
+          );
+        case 'audit-trail':
+          return (
+            <AuditTrail
+            />
+          );
       default:
-        return null;
+        return (
+          <div className="flex flex-col items-center justify-center min-h-[50vh] p-6 text-center">
+            <p className="text-slate-500 text-sm">This page is coming soon.</p>
+          </div>
+        );
     }
   };
 
