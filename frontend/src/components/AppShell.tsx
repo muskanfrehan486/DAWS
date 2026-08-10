@@ -1,7 +1,6 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import {
-  LayoutDashboard, FileText, Clock, Upload, Bell, ClipboardList,
-  User, LogOut, ChevronDown, Search, Menu, X,
+  LayoutDashboard, FileText, Clock, Upload, Bell, ClipboardList, LogOut, ChevronDown, Search, Menu, X, Settings,
 } from 'lucide-react';
 import { NOTIFICATIONS } from '../data/sampleData';
 import type { Page } from '../App';
@@ -39,6 +38,10 @@ export default function AppShell({ children, activePage, onNavigate, onLogout, s
 
   const unreadCount = NOTIFICATIONS.filter(n => !n.read).length;
   const pendingCount = 1;
+  const isAdmin = currentUser?.role === 'ADMINISTRATOR';
+  const userInitials = currentUser
+    ? `${currentUser.firstName?.[0] ?? ''}${currentUser.lastName?.[0] ?? ''}`.toUpperCase()
+    : '??';
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
@@ -87,13 +90,22 @@ export default function AppShell({ children, activePage, onNavigate, onLogout, s
 
       {/* Bottom profile */}
       <div className="px-3 py-3 border-t border-white/10 flex-shrink-0 space-y-0.5">
-        <button
-          onClick={() => onNavigate('profile' as Page)}
+        {isAdmin && (
+          <button
+            onClick={() => { onNavigate('administration'); setMobileOpen(false); }}
+            className={`sidebar-nav-item w-full text-left ${activePage === 'administration' ? 'active' : ''}`}
+          >
+            <Settings size={16} />
+            <span>Administration</span>
+          </button>
+        )}
+        {/* <button
+          onClick={() => { onNavigate('profile' as Page); setMobileOpen(false); }}
           className="sidebar-nav-item w-full text-left"
         >
           <User size={16} />
           <span>Profile</span>
-        </button>
+        </button> */}
         <button
           onClick={onLogout}
           className="sidebar-nav-item w-full text-left hover:bg-red-500/20 hover:text-red-400"
@@ -107,24 +119,33 @@ export default function AppShell({ children, activePage, onNavigate, onLogout, s
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#f3f6fb' }}>
-      {/* Desktop Sidebar */}
+      {/* Desktop sidebar — hidden below lg breakpoint */}
       {showSidebar && (
         <aside
-          className="sidebar-desktop w-60 flex-shrink-0 flex flex-col"
-          style={{ background: '#1b2333', position: 'relative', zIndex: 20 }}
+          className="hidden lg:flex flex-col w-60 flex-shrink-0"
+          style={{ background: '#1b2333' }}
         >
           <SidebarContent />
         </aside>
       )}
 
-      {/* Mobile sidebar overlay */}
+      {/* Mobile drawer — only when hamburger is tapped */}
       {showSidebar && mobileOpen && (
-        <div className="fixed inset-0 z-40 flex lg:hidden">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
-          <aside className="relative w-64 flex flex-col" style={{ background: '#1b2333', zIndex: 50 }}>
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setMobileOpen(false)}
+            aria-hidden
+          />
+          <aside
+            className="absolute inset-y-0 left-0 w-64 flex flex-col shadow-xl"
+            style={{ background: '#1b2333' }}
+          >
             <button
-              className="absolute top-3 right-3 text-slate-400 hover:text-white"
+              type="button"
+              className="absolute top-4 right-3 z-10 text-slate-400 hover:text-white p-1"
               onClick={() => setMobileOpen(false)}
+              aria-label="Close menu"
             >
               <X size={18} />
             </button>
@@ -136,34 +157,38 @@ export default function AppShell({ children, activePage, onNavigate, onLogout, s
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden main-content-offset">
         {/* Topbar */}
-        <header className="flex-shrink-0 h-14 bg-white border-b border-slate-200 flex items-center px-5 gap-4 z-10">
+        <header className="flex-shrink-0 h-14 bg-white border-b border-slate-200 flex items-center px-3 sm:px-5 gap-2 sm:gap-4 z-10">
             {showSidebar && (
             <button
-              className="lg:hidden text-slate-500 hover:text-slate-700 mr-1"
+              type="button"
+              className="inline-flex lg:hidden items-center justify-center w-9 h-9 flex-shrink-0 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-800"
               onClick={() => setMobileOpen(true)}
+              aria-label="Open menu"
             >
-              <Menu size={20} />
+              <Menu size={22} />
             </button>
           )}
 
           {/* Search */}
-          <div className="flex-1 max-w-sm relative">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <div className="flex-1 max-w-sm relative min-w-0">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <input
-              type="text"
-              placeholder="Search ..."
+              type="search"
+              placeholder="Search documents..."
               value={searchValue}
               onChange={e => setSearchValue(e.target.value)}
               className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-colors"
             />
           </div>
 
-          <div className="flex items-center gap-3 ml-auto">
-            {/* Notification bell */
-            showSidebar && (
+          <div className="flex items-center gap-1 sm:gap-3 ml-auto flex-shrink-0">
+            {/* Notification bell */}
+            {showSidebar && (
             <button
+              type="button"
               onClick={() => onNavigate('notifications')}
               className="relative w-9 h-9 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+              aria-label="Notifications"
             >
               <Bell size={17} />
               {unreadCount > 0 && (
@@ -174,14 +199,23 @@ export default function AppShell({ children, activePage, onNavigate, onLogout, s
             {/* User */}
             <div className="relative">
               <button
+                type="button"
                 onClick={() => setProfileOpen(!profileOpen)}
-                className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+                className="flex items-center gap-2 px-1.5 sm:px-2.5 py-1.5 rounded-lg hover:bg-slate-100 transition-colors"
               >
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
+                  style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #0f6cbd 100%)' }}
+                >
+                  {userInitials}
+                </div>
                 <div className="hidden sm:block text-left">
                   <div className="text-sm font-semibold text-slate-800 leading-tight">{currentUser
         ? `${currentUser.firstName} ${currentUser.lastName}`
-        : "Loading..."}</div>
-                  <div className="text-[10px] text-slate-400 leading-tight">{currentUser?.role}</div>
+        : 'Loading...'}</div>
+                  <div className="text-[10px] text-slate-400 leading-tight capitalize">
+                    {currentUser?.role?.toLowerCase() ?? ''}
+                  </div>
                 </div>
                 <ChevronDown size={13} className="text-slate-400 hidden sm:block" />
               </button>
@@ -192,11 +226,11 @@ export default function AppShell({ children, activePage, onNavigate, onLogout, s
                     <div className="text-xs font-semibold text-slate-800">{currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "Loading..."}</div>
                     <div className="text-[10px] text-slate-400">{currentUser?.email}</div>
                   </div>
-                  {showSidebar && (
+                  {/* {showSidebar && (
                     <button className="w-full text-left px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 flex items-center gap-2">
                       <User size={13} /> Profile Settings
                     </button>
-                  )}
+                  )} */}
                   <button
                     onClick={onLogout}
                     className="w-full text-left px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"

@@ -1,1 +1,15 @@
 @import "tailwindcss";
+
+@layer components {
+  .sidebar-nav-item {
+    @apply flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-white/10 hover:text-white transition-colors;
+  }
+
+  .sidebar-nav-item.active {
+    @apply bg-blue-600/20 text-white;
+  }
+
+  .doc-table-row {
+    @apply hover:bg-slate-50/80 transition-colors;
+  }
+}
