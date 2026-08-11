@@ -11,6 +11,7 @@ import SubmitDocument from './pages/SubmitDocument.tsx';
 import Notifications from './pages/Notifications.tsx';
 import AuditTrail from './pages/AuditPage.tsx';
 import DocumentDetail from './pages/DocDetailPage.tsx';
+import { CurrentUserProvider, type CurrentUser } from './contexts/CurrentUserContext.tsx';
 
 export type Page =
   | 'dashboard'
@@ -28,6 +29,8 @@ export default function App() {
   const [activePage, setActivePage] = useState<Page>('dashboard');
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [returnPage, setReturnPage] = useState<Page>('my-documents');
+  const [sessionUser, setSessionUser] = useState<CurrentUser | null>(null);
+  const [sessionKey, setSessionKey] = useState(0);
 
   useEffect(() => {
     if (!getAuthToken()) {
@@ -39,6 +42,7 @@ export default function App() {
       .then(user => {
         if (user) {
           setLoggedIn(true);
+          setSessionUser(user);
           setActivePage(user.role === 'ADMINISTRATOR' ? 'administration' : 'dashboard');
         }
       })
@@ -62,12 +66,15 @@ export default function App() {
 
   const handleLogin = (userRole: UserRole) => {
     setLoggedIn(true);
+    setSessionUser(null);
+    setSessionKey(key => key + 1);
     setActivePage(userRole === 'ADMINISTRATOR' ? 'administration' : 'dashboard');
   };
 
   const handleLogout = () => {
     setAuthToken(null);
     setLoggedIn(false);
+    setSessionUser(null);
     setActivePage('dashboard');
   };
 
@@ -146,13 +153,15 @@ export default function App() {
   const showSidebar = activePage !== 'administration';
 
   return (
-    <AppShell
-      activePage={activePage}
-      onNavigate={handleNavigate}
-      onLogout={handleLogout}
-      showSidebar={showSidebar}
-    >
-      {renderPage()}
-    </AppShell>
+    <CurrentUserProvider key={sessionKey} initialUser={sessionUser}>
+      <AppShell
+        activePage={activePage}
+        onNavigate={handleNavigate}
+        onLogout={handleLogout}
+        showSidebar={showSidebar}
+      >
+        {renderPage()}
+      </AppShell>
+    </CurrentUserProvider>
   );
 }

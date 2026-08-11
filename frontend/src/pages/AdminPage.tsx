@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Mail, Plus, Search, Edit2 } from 'lucide-react';
+import { Users, Plus, Search, Edit2 } from 'lucide-react';
 import Modal from '../components/Modal.tsx';
 import { loadUsers } from '../data/sampleData';
 import { createUser, updateUser } from '../services/AdminApi.ts';

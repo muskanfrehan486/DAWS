@@ -18,7 +18,7 @@ router.get(
     const documents = await documentsService.getDocuments(
       req.supabaseUserId!
     );
-
+    
     res.json(documents);
   })
 );

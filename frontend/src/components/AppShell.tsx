@@ -1,8 +1,8 @@
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import {
   LayoutDashboard, FileText, Clock, Upload, Bell, ClipboardList, LogOut, ChevronDown, Search, Menu, X, Settings,
 } from 'lucide-react';
-import { getMe } from '../services/authApi';
+import { useCurrentUser } from '../contexts/CurrentUserContext';
 import { useUnreadNotificationCount } from '../hooks/useNotifications';
 import { usePendingApprovals } from '../hooks/usePendingApprovals';
 import type { Page } from '../App';
@@ -29,13 +29,7 @@ export default function AppShell({ children, activePage, onNavigate, onLogout, s
   const [searchValue, setSearchValue] = useState('');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any>(null);
-
-  useEffect(() => {
-      getMe()
-          .then(setCurrentUser)
-          .catch(console.error);
-  }, []);
+  const { user: currentUser } = useCurrentUser();
 
   const { unreadCount: notificationUnreadCount } = useUnreadNotificationCount();
   const { documents: pendingDocuments } = usePendingApprovals();
@@ -170,18 +164,6 @@ export default function AppShell({ children, activePage, onNavigate, onLogout, s
               <Menu size={22} />
             </button>
           )}
-
-          {/* Search */}
-          <div className="flex-1 max-w-sm relative min-w-0">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-            <input
-              type="search"
-              placeholder="Search documents..."
-              value={searchValue}
-              onChange={e => setSearchValue(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-colors"
-            />
-          </div>
 
           <div className="flex items-center gap-1 sm:gap-3 ml-auto flex-shrink-0">
             {/* Notification bell */}

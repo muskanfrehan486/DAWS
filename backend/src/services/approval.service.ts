@@ -14,6 +14,7 @@ import {
   ApprovalType,
   Document,
   DocumentVersion,
+  Prisma,
   WorkflowRun,
 } from "../generated/prisma/client";
 
@@ -26,6 +27,21 @@ type ValidatedStepContext = {
 };
 
 class ApprovalService {
+  private async createDocumentThreadComment(
+    tx: Prisma.TransactionClient,
+    documentId: string,
+    authorId: string,
+    comment: string,
+  ) {
+    await tx.documentComment.create({
+      data: {
+        documentId,
+        authorId,
+        comment: comment.trim(),
+      },
+    });
+  }
+
   private decodeSignatureImage(signatureImage: string): Buffer {
     const base64 = signatureImage.replace(/^data:image\/\w+;base64,/, "");
     return Buffer.from(base64, "base64");
@@ -353,6 +369,15 @@ class ApprovalService {
         },
       });
 
+      if (input.comment?.trim()) {
+        await this.createDocumentThreadComment(
+          tx,
+          documentId,
+          actorId,
+          `Document rejected: ${input.comment.trim()}`,
+        );
+      }
+
       for (const recipientId of uplineRecipientIds) {
         await notificationsService.createNotification({
           recipientId,
@@ -422,6 +447,21 @@ class ApprovalService {
           revisionRequestedByActionId: action.id,
         },
       });
+
+      await tx.workflowRun.update({
+        where: { id: run.id },
+        data: {
+          status: "SUPERSEDED",
+          endedAt: new Date(),
+        },
+      });
+
+      await this.createDocumentThreadComment(
+        tx,
+        documentId,
+        actorId,
+        `Revision requested: ${input.comment.trim()}`,
+      );
 
       await notificationsService.createNotification({
         recipientId: document.preparerId,

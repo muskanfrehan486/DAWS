@@ -48,6 +48,25 @@ class WorkflowService {
       throw errors.notFound("Document not found.");
     }
 
+    if (document.status === "REVISION_REQUESTED") {
+      const workflow = document.approvalChain?.steps.map((step) => ({
+        stepOrder: step.stepOrder,
+        approvalType: step.approvalType,
+        assignedUser: step.assignedUser,
+        status: "WAITING",
+        actedAt: null,
+        comment: null,
+      }));
+
+      return {
+        documentId: document.id,
+        documentStatus: document.status,
+        workflowStatus: null,
+        currentStepOrder: null,
+        workflow,
+      };
+    }
+
     const actions = document.currentWorkflowRun?.actions ?? [];
 
     const workflow = document.approvalChain?.steps.map((step) => {
@@ -60,10 +79,10 @@ class WorkflowService {
 
         status: action
           ? action.action
-          : document.currentWorkflowRun &&
-            step.stepOrder === document.currentWorkflowRun.currentStepOrder
-          ? "PENDING"
-          : "WAITING",
+          : document.currentWorkflowRun?.status === "IN_PROGRESS" &&
+              step.stepOrder === document.currentWorkflowRun.currentStepOrder
+            ? "PENDING"
+            : "WAITING",
 
         actedAt: action?.createdAt ?? null,
 
