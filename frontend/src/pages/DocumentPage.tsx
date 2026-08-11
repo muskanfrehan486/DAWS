@@ -853,7 +853,6 @@ export default function MyDocuments({
                     'Workflow',
                     'Status',
                     'Last Updated',
-                    'Actions',
                   ].map(column => (
                     <th
                       key={column}
@@ -989,15 +988,6 @@ export default function MyDocuments({
                       whitespace-nowrap
                     ">
                       {doc.lastUpdated}
-                    </td>
-
-                    {/* Actions */}
-                    <td className="px-4 py-4">
-                      <DocumentActions
-                        onOpen={() =>
-                          onOpenDocument(doc.id)
-                        }
-                      />
                     </td>
                   </tr>
                 ))}

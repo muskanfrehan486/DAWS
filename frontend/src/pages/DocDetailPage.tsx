@@ -10,16 +10,20 @@ import {
   Loader2,
   MessageSquare,
   MoreHorizontal,
+  RotateCcw,
+  Upload,
   User,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Page } from '../App'
+import Modal from '../components/Modal'
 import PdfDocumentViewer from '../components/PdfDocumentViewer'
 import SignApproveModal from '../components/SignApproveModal'
 import StatusBadge from '../components/StatusBadge'
 import { useDocumentDetail } from '../hooks/useDocumentDetail'
+import { requestRevision } from '../services/approvalApi'
 import { downloadDocumentAuditCsv } from '../services/auditApi'
-import { fetchDocumentFile } from '../services/documentDetailApi'
+import { fetchDocumentFile, resubmitDocument } from '../services/documentDetailApi'
 import type {
   CommentView,
   DocumentAuditView,
@@ -243,11 +247,28 @@ function DocumentPreview({
   documentId,
   fileName,
   versionNumber,
+  canApprove,
+  canResubmit,
+  resubmitLoading,
+  pendingActionType,
+  onSignClick,
+  onRequestRevision,
+  onResubmit,
+  onDownload,
 }: {
   documentId: string
   fileName: string
   versionNumber: number
+  canApprove?: boolean
+  canResubmit?: boolean
+  resubmitLoading?: boolean
+  pendingActionType?: string | null
+  onSignClick?: () => void
+  onRequestRevision?: () => void
+  onResubmit?: (file: File) => void
+  onDownload?: () => void
 }) {
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [pdfFile, setPdfFile] = useState<Blob | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -273,17 +294,81 @@ function DocumentPreview({
     return () => {
       cancelled = true
     }
-  }, [documentId])
+  }, [documentId, versionNumber])
 
   return (
     <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-      <div className="px-4 sm:px-5 py-3.5 sm:py-4 flex items-center justify-between gap-3 border-b border-slate-100">
-        <h2 className="text-sm sm:text-base font-semibold text-slate-900">
-          Document Preview
-        </h2>
-        <span className="text-xs text-slate-400">
-          {fileName} · v{versionNumber}
-        </span>
+      <div className="px-4 sm:px-5 py-3.5 sm:py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100">
+        <div className="min-w-0">
+          <h2 className="text-sm sm:text-base font-semibold text-slate-900">
+            Document Preview
+          </h2>
+          <span className="text-xs text-slate-400">
+            {fileName} · v{versionNumber}
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-2 flex-shrink-0">
+          {canApprove && onSignClick && (
+            <button
+              type="button"
+              onClick={onSignClick}
+              className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-emerald-600 text-white text-xs sm:text-sm font-medium hover:bg-emerald-700"
+            >
+              <CheckCircle size={15} />
+              {pendingActionType === 'REVIEWER'
+                ? 'Sign & Complete Review'
+                : 'Sign & Approve'}
+            </button>
+          )}
+          {canApprove && onRequestRevision && (
+            <button
+              type="button"
+              onClick={onRequestRevision}
+              className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg border border-violet-200 bg-violet-50 text-violet-700 text-xs sm:text-sm font-medium hover:bg-violet-100"
+            >
+              <RotateCcw size={15} />
+              Request Revision
+            </button>
+          )}
+          {canResubmit && onResubmit && (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/pdf,.pdf"
+                className="hidden"
+                onChange={event => {
+                  const file = event.target.files?.[0]
+                  if (file) onResubmit(file)
+                  event.target.value = ''
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={resubmitLoading}
+                className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-blue-600 text-white text-xs sm:text-sm font-medium hover:bg-blue-700 disabled:opacity-60"
+              >
+                {resubmitLoading ? (
+                  <Loader2 size={15} className="animate-spin" />
+                ) : (
+                  <Upload size={15} />
+                )}
+                {resubmitLoading ? 'Uploading...' : 'Upload & Resubmit'}
+              </button>
+            </>
+          )}
+          {onDownload && (
+            <button
+              type="button"
+              onClick={onDownload}
+              className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs sm:text-sm font-medium hover:bg-slate-50"
+            >
+              <Download size={15} />
+              Download
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="p-4 bg-slate-50">
@@ -499,20 +584,85 @@ export default function DocumentDetail({
 }) {
   const [activeTab, setActiveTab] = useState<Tab>('overview')
   const [signModalOpen, setSignModalOpen] = useState(false)
+  const [revisionModalOpen, setRevisionModalOpen] = useState(false)
+  const [revisionComment, setRevisionComment] = useState('')
+  const [revisionLoading, setRevisionLoading] = useState(false)
+  const [revisionError, setRevisionError] = useState<string | null>(null)
+  const [resubmitLoading, setResubmitLoading] = useState(false)
+  const [resubmitError, setResubmitError] = useState<string | null>(null)
   const { data, loading, error, commentLoading, refetch, addComment } =
     useDocumentDetail(documentId)
+
+  const handleApproveSuccess = () => {
+    setSignModalOpen(false)
+    onBack()
+  }
+
+  const openRevisionModal = () => {
+    setRevisionComment('')
+    setRevisionError(null)
+    setRevisionModalOpen(true)
+  }
+
+  const closeRevisionModal = () => {
+    if (revisionLoading) return
+    setRevisionModalOpen(false)
+    setRevisionComment('')
+    setRevisionError(null)
+  }
+
+  const handleConfirmRevision = async () => {
+    if (!revisionComment.trim()) {
+      setRevisionError('A comment is required when requesting a revision.')
+      return
+    }
+
+    setRevisionLoading(true)
+    setRevisionError(null)
+
+    try {
+      await requestRevision(documentId, revisionComment)
+      setRevisionModalOpen(false)
+      setRevisionComment('')
+      setRevisionError(null)
+      onBack()
+    } catch (err) {
+      setRevisionError(err instanceof Error ? err.message : 'Request failed')
+    } finally {
+      setRevisionLoading(false)
+    }
+  }
 
   const handleDownload = async () => {
     try {
       const blob = await fetchDocumentFile(documentId)
       const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
+      const link = window.document.createElement('a')
       link.href = url
       link.download = data?.document.fileName ?? 'document.pdf'
       link.click()
       window.URL.revokeObjectURL(url)
     } catch {
       // no-op; preview section shows load errors
+    }
+  }
+
+  const handleResubmit = async (file: File) => {
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      setResubmitError('Please upload a PDF file.')
+      return
+    }
+
+    setResubmitLoading(true)
+    setResubmitError(null)
+
+    try {
+      await resubmitDocument(documentId, file)
+      await refetch()
+    } catch (err) {
+      setResubmitError(err instanceof Error ? err.message : 'Resubmit failed')
+    } finally {
+      setResubmitLoading(false)
     }
   }
 
@@ -560,7 +710,7 @@ export default function DocumentDetail({
     )
   }
 
-  const { document, workflowSteps, completedSteps, totalSteps, reviewers, approvers, workflowSummary, comments, auditRecords, canApprove, pendingActionType } = data
+  const { document, workflowSteps, completedSteps, totalSteps, reviewers, approvers, workflowSummary, comments, auditRecords, canApprove, canResubmit, pendingActionType } = data
 
   return (
     <main className="w-full max-w-[1400px] mx-auto px-3 sm:px-5 lg:px-6 py-4 sm:py-6">
@@ -622,18 +772,6 @@ export default function DocumentDetail({
           </div>
 
           <div className="flex gap-2 w-full lg:w-auto flex-shrink-0 flex-wrap">
-            {canApprove && (
-              <button
-                type="button"
-                onClick={() => setSignModalOpen(true)}
-                className="flex-1 lg:flex-none inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-emerald-600 text-white text-xs sm:text-sm font-medium hover:bg-emerald-700"
-              >
-                <CheckCircle size={15} />
-                {pendingActionType === 'REVIEWER'
-                  ? 'Sign & Complete Review'
-                  : 'Sign & Approve'}
-              </button>
-            )}
             <button
               type="button"
               onClick={() => {
@@ -649,14 +787,6 @@ export default function DocumentDetail({
             </button>
             <button
               type="button"
-              onClick={handleDownload}
-              className="flex-1 lg:flex-none inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs sm:text-sm font-medium hover:bg-slate-50"
-            >
-              <Download size={15} />
-              Download
-            </button>
-            <button
-              type="button"
               className="hidden sm:flex lg:hidden w-10 h-10 items-center justify-center rounded-lg border border-slate-200 text-slate-500"
             >
               <MoreHorizontal size={17} />
@@ -664,6 +794,18 @@ export default function DocumentDetail({
           </div>
         </div>
       </section>
+
+      {canResubmit && (
+        <section className="bg-violet-50 border border-violet-200 rounded-xl p-4 sm:p-5 mb-4">
+          <p className="text-sm font-medium text-violet-900">Revision requested</p>
+          <p className="mt-1 text-xs sm:text-sm text-violet-700">
+            Upload a revised PDF to replace the current version and restart the approval workflow.
+          </p>
+          {resubmitError && (
+            <p className="mt-2 text-sm text-red-600">{resubmitError}</p>
+          )}
+        </section>
+      )}
 
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden mb-4">
         <div className="flex overflow-x-auto scrollbar-none">
@@ -697,6 +839,14 @@ export default function DocumentDetail({
                 documentId={documentId}
                 fileName={document.fileName}
                 versionNumber={document.versionNumber}
+                canApprove={canApprove}
+                canResubmit={canResubmit}
+                resubmitLoading={resubmitLoading}
+                pendingActionType={pendingActionType}
+                onSignClick={() => setSignModalOpen(true)}
+                onRequestRevision={openRevisionModal}
+                onResubmit={handleResubmit}
+                onDownload={handleDownload}
               />
             </div>
           </div>
@@ -750,8 +900,49 @@ export default function DocumentDetail({
         documentId={documentId}
         documentTitle={document.title}
         onClose={() => setSignModalOpen(false)}
-        onSuccess={refetch}
+        onSuccess={handleApproveSuccess}
       />
+
+      <Modal
+        open={revisionModalOpen}
+        onClose={closeRevisionModal}
+        title="Request Revision"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600">
+            Describe what changes are needed before this document can proceed.
+          </p>
+          <textarea
+            value={revisionComment}
+            onChange={e => setRevisionComment(e.target.value)}
+            rows={4}
+            placeholder="Revision comments (required)"
+            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 resize-none"
+          />
+          {revisionError && (
+            <p className="text-sm text-red-600">{revisionError}</p>
+          )}
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={closeRevisionModal}
+              disabled={revisionLoading}
+              className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmRevision}
+              disabled={revisionLoading}
+              className="px-4 py-2 text-sm font-semibold text-white bg-violet-600 hover:bg-violet-700 rounded-lg disabled:opacity-50"
+            >
+              {revisionLoading ? 'Submitting...' : 'Confirm'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </main>
   )
 }

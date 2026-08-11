@@ -4,6 +4,7 @@ import { errors } from "../lib/errors";
 import { storageService } from "../lib/supabase.storage";
 import { ApprovalType } from "../generated/prisma/client";
 import { notificationsService } from "./notifications.service";
+import { auditService } from "./audit.service";
 import {
   CreateDocumentInput,
   UpdateDocumentInput,
@@ -297,9 +298,15 @@ class DocumentsService {
     });
 
     const documentsResult = filteredDocuments.map(({ currentWorkflowRun, ...rest }) => {
-      const currentStep = currentWorkflowRun
-        ? currentWorkflowRun.chain.steps.find(
-            (step) => step.stepOrder === currentWorkflowRun.currentStepOrder
+      const activeRun =
+        rest.status === "REVISION_REQUESTED"
+          ? null
+          : currentWorkflowRun?.status === "IN_PROGRESS"
+            ? currentWorkflowRun
+            : null;
+      const currentStep = activeRun
+        ? activeRun.chain.steps.find(
+            (step) => step.stepOrder === activeRun.currentStepOrder
           )
         : null;
 
@@ -313,12 +320,17 @@ class DocumentsService {
               assignedUser: currentStep.assignedUser,
             }
           : null,
-        workflow: currentWorkflowRun
+        workflow: activeRun
           ? {
-              currentStepOrder: currentWorkflowRun.currentStepOrder,
-              totalSteps: currentWorkflowRun.chain.steps.length,
+              currentStepOrder: activeRun.currentStepOrder,
+              totalSteps: activeRun.chain.steps.length,
             }
-          : null,
+          : rest.status === "REVISION_REQUESTED" && currentWorkflowRun
+            ? {
+                currentStepOrder: 0,
+                totalSteps: currentWorkflowRun.chain.steps.length,
+              }
+            : null,
       };
     });
 
@@ -391,6 +403,10 @@ class DocumentsService {
     const isPreparer = document.preparerId === userId;
 
     if (!isPreparer) {
+      if (document.status === "REVISION_REQUESTED") {
+        throw errors.forbidden("Access denied");
+      }
+
       if (!currentRun || currentRun.status !== "IN_PROGRESS") {
         throw errors.forbidden("Access denied");
       }
@@ -404,11 +420,13 @@ class DocumentsService {
       }
     }
 
-    const currentStep = currentRun
-      ? currentRun.chain.steps.find(
-          (step) => step.stepOrder === currentRun.currentStepOrder
-        )
-      : null;
+    const currentStep =
+      document.status !== "REVISION_REQUESTED" &&
+      currentRun?.status === "IN_PROGRESS"
+        ? currentRun.chain.steps.find(
+            (step) => step.stepOrder === currentRun.currentStepOrder
+          )
+        : null;
 
     return {
       ...document,
@@ -426,7 +444,9 @@ class DocumentsService {
   async getDocumentFile(documentId: string, userId: string) {
     const document = await this.getDocumentById(documentId, userId);
     const version =
-      document.currentWorkflowRun?.documentVersion ?? document.versions[0];
+      document.currentWorkflowRun?.status === "IN_PROGRESS"
+        ? document.currentWorkflowRun.documentVersion
+        : document.versions[0];
 
     if (!version) {
       throw errors.notFound("Document file not found");
@@ -450,11 +470,28 @@ class DocumentsService {
 
   const document = await prisma.document.findUnique({
     where: { id: documentId },
-    select: { id: true, preparerId: true, currentVersionNumber: true, currentWorkflowRunId: true },
+    select: {
+      id: true,
+      title: true,
+      preparerId: true,
+      status: true,
+      currentVersionNumber: true,
+      currentWorkflowRunId: true,
+    },
   });
 
   if (!document) throw errors.notFound("Document not found");
-  if (document.preparerId !== userId) throw errors.forbidden("Only the document preparer can update the document.");
+  if (document.preparerId !== userId) {
+    throw errors.forbidden("Only the document preparer can update the document.");
+  }
+  if (document.status !== "REVISION_REQUESTED") {
+    throw errors.badRequest(
+      "Document can only be resubmitted when a revision has been requested."
+    );
+  }
+  if (!file) {
+    throw errors.badRequest("A revised PDF is required to resubmit the document.");
+  }
 
   const currentVersion = await prisma.documentVersion.findFirst({
     where: { documentId, versionNumber: document.currentVersionNumber },
@@ -464,27 +501,33 @@ class DocumentsService {
     throw errors.internal("Current document version not found.");
   }
 
-  const oldVersion = file ? currentVersion : null;
-  const versionNumber = file ? currentVersion.versionNumber + 1 : currentVersion.versionNumber;
-  const storagePath = file ? `documents/${documentId}/v${versionNumber}.pdf` : undefined;
+  const oldVersion = currentVersion;
+  const versionNumber = currentVersion.versionNumber + 1;
+  const storagePath = `documents/${documentId}/v${versionNumber}.pdf`;
 
-  if (file) {
-    await storageService.uploadDocument(storagePath!, file);
-  }
+  await storageService.uploadDocument(storagePath, file);
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      const updateData: any = {
+      const updateData: Record<string, unknown> = {
         status: "PENDING_REVIEW",
+        revisionRequestedByActionId: null,
+        currentVersionNumber: versionNumber,
       };
 
       if (title !== undefined) updateData.title = title;
       if (description !== undefined) updateData.description = description || null;
-      if (file) updateData.currentVersionNumber = versionNumber;
 
       await tx.document.update({ where: { id: documentId }, data: updateData });
 
-      const chain = await tx.approvalChain.findUnique({ where: { documentId } });
+      const chain = await tx.approvalChain.findUnique({
+        where: { documentId },
+        include: {
+          steps: {
+            orderBy: { stepOrder: "asc" },
+          },
+        },
+      });
       if (!chain) throw errors.internal("Approval chain missing");
 
       if (approvalChain) {
@@ -502,27 +545,23 @@ class DocumentsService {
       if (document.currentWorkflowRunId) {
         await tx.workflowRun.update({
           where: { id: document.currentWorkflowRunId },
-          data: { status: "SUPERSEDED" },
+          data: { status: "SUPERSEDED", endedAt: new Date() },
         });
       }
 
-      const version = file
-        ? await tx.documentVersion.create({
-            data: {
-              documentId,
-              versionNumber,
-              storagePath: storagePath!,
-              uploadedById: userId,
-            },
-          })
-        : currentVersion;
+      const version = await tx.documentVersion.create({
+        data: {
+          documentId,
+          versionNumber,
+          storagePath,
+          uploadedById: userId,
+        },
+      });
 
-      if (file && oldVersion) {
-        await tx.documentVersion.update({
-          where: { id: oldVersion.id },
-          data: { isDeleted: true },
-        });
-      }
+      await tx.documentVersion.update({
+        where: { id: oldVersion.id },
+        data: { isDeleted: true },
+      });
 
       const workflowRun = await tx.workflowRun.create({
         data: {
@@ -541,25 +580,63 @@ class DocumentsService {
         },
       });
 
+      await auditService.createAuditLog({
+        actorId: userId,
+        action: "DOCUMENT_VERSION_UPLOADED",
+        entityType: "Document",
+        entityId: documentId,
+        oldValue: { versionNumber: oldVersion.versionNumber },
+        newValue: { versionNumber },
+        tx,
+      });
+
+      await auditService.createAuditLog({
+        actorId: userId,
+        action: "DOCUMENT_SUBMITTED",
+        entityType: "Document",
+        entityId: documentId,
+        oldValue: { status: "REVISION_REQUESTED" },
+        newValue: { status: "PENDING_REVIEW", workflowRunId: workflowRun.id },
+        tx,
+      });
+
+      const chainSteps = approvalChain
+        ? approvalChain.map((step, index) => ({
+            assignedUserId: step.userId,
+            approvalType: step.approvalType,
+            stepOrder: index + 1,
+          }))
+        : chain.steps;
+
       return {
         version,
         workflowRunId: workflowRun.id,
+        documentTitle: (title ?? document.title) as string,
+        firstStep: chainSteps[0] ?? null,
       };
     });
 
-    if (oldVersion && file) {
-      await storageService.deleteDocument(oldVersion.storagePath);
+    if (result.firstStep) {
+      const isReview = result.firstStep.approvalType === ApprovalType.REVIEWER;
+      await notificationsService.createNotification({
+        recipientId: result.firstStep.assignedUserId,
+        type: "APPROVAL_NEEDED",
+        title: isReview ? "Review Required" : "Approval Required",
+        message: `Revised document "${result.documentTitle}" requires your ${isReview ? "review" : "approval"}.`,
+        documentId,
+        workflowRunId: result.workflowRunId,
+      });
     }
 
+    await storageService.deleteDocument(oldVersion.storagePath);
+
     return {
-      message: "Document updated successfully.",
+      message: "Document resubmitted successfully.",
       version: result.version,
       workflowRunId: result.workflowRunId,
     };
   } catch (error) {
-    if (file) {
-      await storageService.deleteDocument(storagePath!);
-    }
+    await storageService.deleteDocument(storagePath);
     throw error;
   }
 }

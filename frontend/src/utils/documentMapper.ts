@@ -34,7 +34,10 @@ export function mapApiStatusToUi(
 }
 
 function resolveCurrentHolder(document: ApiDocument): string {
-  if (document.currentStep?.assignedUser) {
+  if (
+    document.status !== 'REVISION_REQUESTED' &&
+    document.currentStep?.assignedUser
+  ) {
     const { firstName, lastName } = document.currentStep.assignedUser
     return formatFullName(firstName, lastName)
   }

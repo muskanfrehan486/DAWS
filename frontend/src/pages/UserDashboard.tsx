@@ -587,7 +587,6 @@ export default function UserDashboard({
                   'Workflow Step',
                   'Status',
                   'Last Updated',
-                  'Actions',
                 ].map(col => (
                   <th
                     key={col}
@@ -611,7 +610,7 @@ export default function UserDashboard({
             <tbody>
               {recent.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-slate-400">
+                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-slate-400">
                     No documents yet.
                   </td>
                 </tr>
@@ -714,12 +713,6 @@ export default function UserDashboard({
                     whitespace-nowrap
                   ">
                     {doc.lastUpdated}
-                  </td>
-
-                  <td className="px-4 py-3">
-                    <DocumentActions
-                      onView={() => onOpenDocument(doc.id)}
-                    />
                   </td>
                 </tr>
               )))}

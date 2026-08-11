@@ -98,3 +98,21 @@ export async function fetchDocumentFile(documentId: string): Promise<Blob> {
 
   return res.blob()
 }
+
+export async function resubmitDocument(
+  documentId: string,
+  file: File,
+): Promise<void> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const res = await fetch(`/api/documents/${documentId}`, {
+    method: 'PATCH',
+    headers: { ...authHeaders() },
+    body: formData,
+  })
+
+  if (!res.ok) {
+    throw new Error(await parseApiError(res))
+  }
+}

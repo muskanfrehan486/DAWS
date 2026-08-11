@@ -10,6 +10,7 @@ function getEnv(key: string): string {
 
 export const env = {
   DATABASE_URL: getEnv("DATABASE_URL"),
+  DIRECT_URL: process.env.DIRECT_URL,
   SUPABASE_URL: getEnv("SUPABASE_URL"),
   SUPABASE_ANON_KEY: getEnv("SUPABASE_ANON_KEY"),
   SUPABASE_SERVICE_ROLE_KEY: getEnv("SUPABASE_SERVICE_ROLE_KEY"),

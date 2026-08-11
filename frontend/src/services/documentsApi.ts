@@ -1,6 +1,7 @@
 import type { DocumentsListResponse } from '../types/document'
 import type { CreateDocumentInput } from '../types/submitDocument'
 import { authHeaders } from './authApi'
+import { createCachedRequest } from '../utils/requestCache'
 
 async function parseApiError(res: Response): Promise<string> {
   const body = await res.json().catch(() => ({}))
@@ -17,6 +18,20 @@ export async function fetchDocuments(): Promise<DocumentsListResponse> {
   }
 
   return res.json() as Promise<DocumentsListResponse>
+}
+
+// Dashboard, My Documents, Pending Approvals and the app shell's badge counts
+// all read the same document list on a typical page load. Cache briefly and
+// dedupe concurrent requests so that navigation triggers one network call
+// instead of several.
+const documentsCache = createCachedRequest(fetchDocuments, 4000)
+
+export function fetchDocumentsCached(force = false): Promise<DocumentsListResponse> {
+  return documentsCache.get(force)
+}
+
+export function invalidateDocumentsCache(): void {
+  documentsCache.invalidate()
 }
 
 export async function createDocument(input: CreateDocumentInput) {

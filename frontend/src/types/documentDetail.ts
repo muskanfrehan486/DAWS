@@ -120,4 +120,11 @@ export interface DocumentDetailData {
   auditRecords: DocumentAuditView[]
   canApprove: boolean
   pendingActionType: ApiApprovalType | null
+  canResubmit: boolean
 }
+
+/** Document detail without user-specific action flags (set in useDocumentDetail). */
+export type AssembledDocumentDetailData = Omit<
+  DocumentDetailData,
+  'canApprove' | 'pendingActionType' | 'canResubmit'
+>

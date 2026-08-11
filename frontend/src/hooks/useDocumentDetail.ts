@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { getMe } from '../services/authApi'
+import { useCurrentUser } from '../contexts/CurrentUserContext'
 import {
   createDocumentComment,
   fetchDocumentAuditHistory,
@@ -35,22 +35,31 @@ function resolveCanApprove(
 }
 
 export function useDocumentDetail(documentId: string) {
+  const { user, loading: userLoading, error: userError } = useCurrentUser()
   const [data, setData] = useState<DocumentDetailData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [commentLoading, setCommentLoading] = useState(false)
 
   const load = useCallback(async () => {
+    if (userLoading) return
+
     setLoading(true)
     setError(null)
 
+    if (!user) {
+      setData(null)
+      setError(userError ?? 'Failed to load current user')
+      setLoading(false)
+      return
+    }
+
     try {
-      const [document, workflow, comments, auditHistory, me] = await Promise.all([
+      const [document, workflow, comments, auditHistory] = await Promise.all([
         fetchDocumentById(documentId),
         fetchDocumentWorkflow(documentId),
         fetchDocumentComments(documentId),
         fetchDocumentAuditHistory(documentId),
-        getMe(),
       ])
 
       const assembled = assembleDocumentDetailData(
@@ -66,16 +75,19 @@ export function useDocumentDetail(documentId: string) {
           workflow.documentStatus,
           document.preparerId,
           workflow,
-          me.id,
+          user.id,
         ),
         pendingActionType: resolveCanApprove(
           workflow.documentStatus,
           document.preparerId,
           workflow,
-          me.id,
+          user.id,
         )
-          ? resolvePendingActionType(workflow, me.id)
+          ? resolvePendingActionType(workflow, user.id)
           : null,
+        canResubmit:
+          document.preparerId === user.id &&
+          workflow.documentStatus === 'REVISION_REQUESTED',
       })
     } catch (err) {
       setData(null)
@@ -83,7 +95,7 @@ export function useDocumentDetail(documentId: string) {
     } finally {
       setLoading(false)
     }
-  }, [documentId])
+  }, [documentId, user, userLoading, userError])
 
   useEffect(() => {
     load()

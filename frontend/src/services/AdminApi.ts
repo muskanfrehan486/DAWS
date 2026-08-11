@@ -1,8 +1,6 @@
 import type { User, UpdateUserPayload } from '../types/admin.ts'
 import { authHeaders } from './authApi.ts';
 
-const BASE = import.meta.env.VITE_API_BASE || ''
-
 export async function fetchUsers() {
   const res = await fetch(`/api/admin/users`, { headers: {
       ...authHeaders(),

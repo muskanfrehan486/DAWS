@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { getMe } from '../services/authApi'
-import { fetchDocuments } from '../services/documentsApi'
-import type { DashboardDocument } from '../types/document'
+import { useCurrentUser } from '../contexts/CurrentUserContext'
+import { fetchDocumentsCached, invalidateDocumentsCache } from '../services/documentsApi'
+import type { ApiDocument, DashboardDocument } from '../types/document'
 import { mapApiDocumentToDashboard } from '../utils/documentMapper'
 import { formatFullName } from '../utils/user'
 
@@ -15,34 +15,23 @@ interface UseDocumentsResult {
 }
 
 export function useDocuments(): UseDocumentsResult {
-  const [documents, setDocuments] = useState<DashboardDocument[]>([])
-  const [currentUserId, setCurrentUserId] = useState('')
-  const [userName, setUserName] = useState('')
-  const [loading, setLoading] = useState(true)
+  const { user, loading: userLoading, error: userError } = useCurrentUser()
+  const [documents, setDocuments] = useState<ApiDocument[]>([])
+  const [documentsLoading, setDocumentsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const load = useCallback(async (force = false) => {
+    setDocumentsLoading(true)
     setError(null)
 
     try {
-      const [user, { documents: apiDocuments }] = await Promise.all([
-        getMe(),
-        fetchDocuments(),
-      ])
-
-      setCurrentUserId(user.id)
-      setUserName(formatFullName(user.firstName, user.lastName))
-      setDocuments(
-        apiDocuments.map(doc => mapApiDocumentToDashboard(doc, user.id)),
-      )
+      const { documents: apiDocuments } = await fetchDocumentsCached(force)
+      setDocuments(apiDocuments)
     } catch (err) {
       setDocuments([])
-      setCurrentUserId('')
-      setUserName('')
       setError(err instanceof Error ? err.message : 'Failed to load documents')
     } finally {
-      setLoading(false)
+      setDocumentsLoading(false)
     }
   }, [])
 
@@ -50,5 +39,23 @@ export function useDocuments(): UseDocumentsResult {
     load()
   }, [load])
 
-  return { documents, currentUserId, userName, loading, error, refetch: load }
+  const refetch = useCallback(() => {
+    invalidateDocumentsCache()
+    load(true)
+  }, [load])
+
+  const currentUserId = user?.id ?? ''
+  const userName = user ? formatFullName(user.firstName, user.lastName) : ''
+  const mappedDocuments = currentUserId
+    ? documents.map(doc => mapApiDocumentToDashboard(doc, currentUserId))
+    : []
+
+  return {
+    documents: mappedDocuments,
+    currentUserId,
+    userName,
+    loading: userLoading || documentsLoading,
+    error: userError ?? error,
+    refetch,
+  }
 }

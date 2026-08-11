@@ -5,8 +5,8 @@ import type {
   ApiWorkflowResponse,
   CommentView,
   DocumentAuditView,
-  DocumentDetailData,
   DocumentDetailView,
+  AssembledDocumentDetailData,
   WorkflowStepStatus,
   WorkflowStepView,
 } from '../types/documentDetail.ts'
@@ -16,7 +16,10 @@ import { formatDisplayDate } from './format'
 import { formatFullName, getInitials } from './user'
 
 function resolveCurrentHolder(document: ApiDocumentDetail): string {
-  if (document.currentStep?.assignedUser) {
+  if (
+    document.status !== 'REVISION_REQUESTED' &&
+    document.currentStep?.assignedUser
+  ) {
     return formatFullName(
       document.currentStep.assignedUser.firstName,
       document.currentStep.assignedUser.lastName,
@@ -116,6 +119,7 @@ export function buildDocumentDetailView(
 
 function buildPreparerStep(document: ApiDocumentDetail): WorkflowStepView {
   const submitted = Boolean(document.submittedAt)
+  const needsRevision = document.status === 'REVISION_REQUESTED'
   const submittedDate = document.submittedAt ?? document.createdAt
 
   return {
@@ -131,7 +135,7 @@ function buildPreparerStep(document: ApiDocumentDetail): WorkflowStepView {
       document.preparer.lastName,
     ),
     date: formatDisplayDate(submittedDate),
-    status: submitted ? 'completed' : 'current',
+    status: needsRevision ? 'current' : submitted ? 'completed' : 'current',
   }
 }
 
@@ -164,6 +168,11 @@ export function buildWorkflowSummary(
   workflow: ApiWorkflowResponse,
   steps: WorkflowStepView[],
 ): string {
+  if (workflow.documentStatus === 'REVISION_REQUESTED') {
+    const preparerStep = steps.find(step => step.type === 'Preparer')
+    return `Revision requested. ${preparerStep?.user ?? 'The preparer'} must upload a revised document and resubmit for review.`
+  }
+
   const total = steps.length
   const currentStep = steps.find(step => step.status === 'current')
 
@@ -207,7 +216,7 @@ export function assembleDocumentDetailData(
   workflow: ApiWorkflowResponse,
   comments: ApiComment[],
   auditEntries: ApiDocumentAuditEntry[],
-): DocumentDetailData {
+): AssembledDocumentDetailData {
   const documentView = buildDocumentDetailView(document)
   const workflowSteps = buildWorkflowSteps(document, workflow)
   const completedSteps = workflowSteps.filter(
@@ -224,7 +233,6 @@ export function assembleDocumentDetailData(
     totalSteps: workflowSteps.length,
     reviewers,
     approvers,
-    canApprove: approvers > 0,
     workflowSummary: buildWorkflowSummary(workflow, workflowSteps),
     comments: buildCommentViews(comments),
     auditRecords: buildDocumentAuditViews(auditEntries),
