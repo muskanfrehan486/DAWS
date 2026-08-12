@@ -9,6 +9,11 @@ import {
   CreateDocumentInput,
   UpdateDocumentInput,
 } from "../schemas/documents.schema";
+import {
+  canUserViewDocument,
+  documentHasUserActed,
+  prismaDocumentAccessFilter,
+} from "../lib/documentAccess";
 
 class DocumentsService {
   async createDocument(
@@ -100,6 +105,19 @@ class DocumentsService {
           data: {
             currentWorkflowRunId: workflowRun.id,
           },
+        });
+
+        await auditService.createAuditLog({
+          actorId: userId,
+          action: "DOCUMENT_SUBMITTED",
+          entityType: "Document",
+          entityId: documentId,
+          newValue: {
+            status: "PENDING_REVIEW",
+            versionNumber,
+            workflowRunId: workflowRun.id,
+          },
+          tx,
         });
 
         return {
@@ -216,25 +234,7 @@ class DocumentsService {
   }
   async getDocuments(userId: string) {
     const documents = await prisma.document.findMany({
-      where: {
-        OR: [
-          {
-            preparerId: userId,
-          },
-          {
-            currentWorkflowRun: {
-              status: "IN_PROGRESS",
-              chain: {
-                steps: {
-                  some: {
-                    assignedUserId: userId,
-                  },
-                },
-              },
-            },
-          },
-        ],
-      },
+      where: prismaDocumentAccessFilter(userId),
 
       include: {
         preparer: {
@@ -273,6 +273,16 @@ class DocumentsService {
             },
           },
         },
+        workflowRuns: {
+          select: {
+            currentStepOrder: true,
+            actions: {
+              where: { actorId: userId },
+              select: { id: true },
+              take: 1,
+            },
+          },
+        },
       },
 
       orderBy: {
@@ -280,35 +290,57 @@ class DocumentsService {
       },
     });
 
-    const filteredDocuments = documents.filter((document) => {
-      if (document.preparerId === userId) {
-        return true;
-      }
+    const filteredDocuments = documents.filter((document) =>
+      canUserViewDocument({
+        preparerId: document.preparerId,
+        userId,
+        currentWorkflowRun: document.currentWorkflowRun,
+        workflowRunHistory: document.workflowRuns,
+        hasUserActed: documentHasUserActed(document.workflowRuns),
+      })
+    );
 
-      const currentRun = document.currentWorkflowRun;
-      if (!currentRun || currentRun.status !== "IN_PROGRESS") {
-        return false;
-      }
+    const documentsResult = filteredDocuments.map(
+      ({ currentWorkflowRun, workflowRuns: _workflowRuns, ...rest }) => {
+      const run = currentWorkflowRun;
+      const totalSteps = run?.chain.steps.length ?? 0;
+      const isActiveRun =
+        rest.status !== "REVISION_REQUESTED" && run?.status === "IN_PROGRESS";
 
-      const currentStep = currentRun.chain.steps.find(
-        (step) => step.stepOrder === currentRun.currentStepOrder
-      );
-
-      return currentStep?.assignedUserId === userId;
-    });
-
-    const documentsResult = filteredDocuments.map(({ currentWorkflowRun, ...rest }) => {
-      const activeRun =
-        rest.status === "REVISION_REQUESTED"
-          ? null
-          : currentWorkflowRun?.status === "IN_PROGRESS"
-            ? currentWorkflowRun
-            : null;
-      const currentStep = activeRun
-        ? activeRun.chain.steps.find(
-            (step) => step.stepOrder === activeRun.currentStepOrder
+      const currentStep = isActiveRun
+        ? run.chain.steps.find(
+            (step) => step.stepOrder === run.currentStepOrder
           )
         : null;
+
+      let workflow: { currentStepOrder: number; totalSteps: number } | null =
+        null;
+
+      if (isActiveRun && run) {
+        workflow = {
+          currentStepOrder: run.currentStepOrder,
+          totalSteps,
+        };
+      } else if (rest.status === "REVISION_REQUESTED" && run) {
+        workflow = {
+          currentStepOrder: 0,
+          totalSteps,
+        };
+      } else if (
+        (rest.status === "APPROVED" || rest.status === "REJECTED") &&
+        run
+      ) {
+        workflow = {
+          currentStepOrder:
+            rest.status === "APPROVED" ? totalSteps : run.currentStepOrder,
+          totalSteps,
+        };
+      } else if (rest.status === "DELETED" && run) {
+        workflow = {
+          currentStepOrder: 0,
+          totalSteps,
+        };
+      }
 
       return {
         ...rest,
@@ -320,19 +352,10 @@ class DocumentsService {
               assignedUser: currentStep.assignedUser,
             }
           : null,
-        workflow: activeRun
-          ? {
-              currentStepOrder: activeRun.currentStepOrder,
-              totalSteps: activeRun.chain.steps.length,
-            }
-          : rest.status === "REVISION_REQUESTED" && currentWorkflowRun
-            ? {
-                currentStepOrder: 0,
-                totalSteps: currentWorkflowRun.chain.steps.length,
-              }
-            : null,
+        workflow,
       };
-    });
+    }
+    );
 
     return {
       documents: documentsResult,
@@ -437,6 +460,16 @@ class DocumentsService {
             },
           },
         },
+        workflowRuns: {
+          select: {
+            currentStepOrder: true,
+            actions: {
+              where: { actorId: userId },
+              select: { id: true },
+              take: 1,
+            },
+          },
+        },
       },
     });
 
@@ -445,25 +478,21 @@ class DocumentsService {
     }
 
     const currentRun = document.currentWorkflowRun;
-    const isPreparer = document.preparerId === userId;
 
-    if (!isPreparer) {
-      if (document.status === "REVISION_REQUESTED") {
-        throw errors.forbidden("Access denied");
-      }
-
-      if (!currentRun || currentRun.status !== "IN_PROGRESS") {
-        throw errors.forbidden("Access denied");
-      }
-
-      const currentStep = currentRun.chain.steps.find(
-        (step) => step.stepOrder === currentRun.currentStepOrder
-      );
-
-      if (currentStep?.assignedUserId !== userId) {
-        throw errors.forbidden("Access denied");
-      }
+    if (
+      !canUserViewDocument({
+        preparerId: document.preparerId,
+        userId,
+        approvalChain: document.approvalChain,
+        currentWorkflowRun: currentRun,
+        workflowRunHistory: document.workflowRuns,
+        hasUserActed: documentHasUserActed(document.workflowRuns),
+      })
+    ) {
+      throw errors.forbidden("Access denied");
     }
+
+    const { workflowRuns: _workflowRuns, ...documentResult } = document;
 
     const currentStep =
       document.status !== "REVISION_REQUESTED" &&
@@ -474,7 +503,7 @@ class DocumentsService {
         : null;
 
     return {
-      ...document,
+      ...documentResult,
       currentStep: currentStep
         ? {
             id: currentStep.id,
@@ -488,6 +517,11 @@ class DocumentsService {
 
   async getDocumentFile(documentId: string, userId: string) {
     const document = await this.getDocumentById(documentId, userId);
+
+    if (document.status === "DELETED") {
+      throw errors.notFound("Document file is no longer available.");
+    }
+
     const version =
       document.currentWorkflowRun?.status === "IN_PROGRESS"
         ? document.currentWorkflowRun.documentVersion
@@ -528,6 +562,9 @@ class DocumentsService {
   if (!document) throw errors.notFound("Document not found");
   if (document.preparerId !== userId) {
     throw errors.forbidden("Only the document preparer can update the document.");
+  }
+  if (document.status === "DELETED") {
+    throw errors.badRequest("Deleted documents cannot be updated.");
   }
   if (document.status !== "REVISION_REQUESTED") {
     throw errors.badRequest(
@@ -641,7 +678,11 @@ class DocumentsService {
         entityType: "Document",
         entityId: documentId,
         oldValue: { status: "REVISION_REQUESTED" },
-        newValue: { status: "PENDING_REVIEW", workflowRunId: workflowRun.id },
+        newValue: {
+          status: "PENDING_REVIEW",
+          versionNumber,
+          workflowRunId: workflowRun.id,
+        },
         tx,
       });
 
@@ -685,6 +726,122 @@ class DocumentsService {
     throw error;
   }
 }
+
+  async deleteDocument(documentId: string, userId: string) {
+    const document = await prisma.document.findUnique({
+      where: { id: documentId },
+      include: {
+        versions: {
+          select: { storagePath: true },
+        },
+        approvalChain: {
+          include: {
+            steps: {
+              select: { assignedUserId: true },
+            },
+          },
+        },
+        currentWorkflowRun: {
+          select: { id: true, status: true },
+        },
+        workflowRuns: {
+          include: {
+            actions: {
+              select: { signedPdfStoragePath: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!document) {
+      throw errors.notFound("Document not found");
+    }
+
+    if (document.preparerId !== userId) {
+      throw errors.forbidden("Only the document preparer can delete this document.");
+    }
+
+    if (document.status === "DELETED") {
+      throw errors.badRequest("Document has already been deleted.");
+    }
+
+    const storagePaths = new Set<string>();
+    for (const version of document.versions) {
+      storagePaths.add(version.storagePath);
+    }
+
+    for (const run of document.workflowRuns) {
+      for (const action of run.actions) {
+        if (action.signedPdfStoragePath) {
+          storagePaths.add(action.signedPdfStoragePath);
+        }
+      }
+    }
+
+    const recipientIds = new Set(
+      document.approvalChain?.steps.map((step) => step.assignedUserId) ?? []
+    );
+
+    await prisma.$transaction(async (tx) => {
+      if (
+        document.currentWorkflowRunId &&
+        document.currentWorkflowRun?.status === "IN_PROGRESS"
+      ) {
+        await tx.workflowRun.update({
+          where: { id: document.currentWorkflowRunId },
+          data: {
+            status: "SUPERSEDED",
+            endedAt: new Date(),
+          },
+        });
+      }
+
+      await tx.documentVersion.updateMany({
+        where: { documentId },
+        data: { isDeleted: true },
+      });
+
+      await tx.document.update({
+        where: { id: documentId },
+        data: {
+          status: "DELETED",
+          deletedAt: new Date(),
+        },
+      });
+
+      await auditService.createAuditLog({
+        actorId: userId,
+        action: "DOCUMENT_DELETED",
+        entityType: "Document",
+        entityId: documentId,
+        oldValue: { status: document.status },
+        newValue: { status: "DELETED" },
+        tx,
+      });
+
+      for (const recipientId of recipientIds) {
+        if (recipientId === userId) {
+          continue;
+        }
+
+        await notificationsService.createNotification({
+          recipientId,
+          type: "DOCUMENT_DELETED",
+          title: "Document Deleted",
+          message: `The preparer deleted "${document.title}".`,
+          documentId,
+          tx,
+        });
+      }
+    });
+
+    for (const path of storagePaths) {
+      await storageService.deleteDocument(path);
+    }
+
+    return { message: "Document deleted successfully." };
+  }
 }
 
 export const documentsService = new DocumentsService();

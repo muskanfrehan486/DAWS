@@ -5,6 +5,7 @@ export type ApiNotificationType =
   | 'REJECTED'
   | 'APPROVED'
   | 'RESUBMITTED'
+  | 'DOCUMENT_DELETED'
 
 export interface ApiNotification {
   id: string
@@ -29,6 +30,7 @@ export type NotificationUiCategory =
   | 'revision'
   | 'rejected'
   | 'submitted'
+  | 'deleted'
 
 export interface NotificationItem {
   id: string

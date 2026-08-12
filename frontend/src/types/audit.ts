@@ -1,4 +1,10 @@
-export type ApiApprovalActionType = 'APPROVE' | 'REJECT' | 'REQUEST_REVISION'
+export type ApiApprovalActionType =
+  | 'APPROVE'
+  | 'REJECT'
+  | 'REQUEST_REVISION'
+  | 'DOCUMENT_UPLOADED'
+  | 'DOCUMENT_RESUBMITTED'
+  | 'DOCUMENT_DELETED'
 
 export type ApiApprovalType = 'REVIEWER' | 'APPROVER' | 'FINAL_APPROVER'
 
@@ -32,10 +38,17 @@ export interface AuditHistoryResponse {
   auditHistory: ApiAuditEntry[]
 }
 
-export type AuditActionLabel = 'Approved' | 'Rejected' | 'Revision Requested'
+export type AuditActionLabel =
+  | 'Approved'
+  | 'Rejected'
+  | 'Revision Requested'
+  | 'Document Uploaded'
+  | 'Document Resubmitted'
+  | 'Document Deleted'
 
 export interface AuditRecord {
   id: string
+  occurredAt: string
   date: string
   time: string
   document: string
@@ -47,4 +60,12 @@ export interface AuditRecord {
   action: AuditActionLabel
   actionRaw: ApiApprovalActionType
   comments: string
+}
+
+export interface AuditDocumentGroup {
+  documentId: string
+  document: string
+  documentStatus: ApiDocumentStatus
+  actions: AuditRecord[]
+  latestAction: AuditRecord
 }

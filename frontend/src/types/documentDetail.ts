@@ -70,6 +70,7 @@ export interface DocumentDetailView {
   title: string
   description: string
   status: DocumentStatus
+  preparerId: string
   preparerName: string
   submittedDate: string
   lastUpdated: string

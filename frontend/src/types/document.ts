@@ -5,6 +5,7 @@ export type ApiDocumentStatus =
   | 'REVISION_REQUESTED'
   | 'REJECTED'
   | 'APPROVED'
+  | 'DELETED'
 
 export type ApiApprovalType = 'REVIEWER' | 'APPROVER' | 'FINAL_APPROVER'
 
@@ -53,6 +54,7 @@ export type DocumentStatus =
   | 'revision_requested'
   | 'approved'
   | 'rejected'
+  | 'deleted'
 
 export type FileType = 'pdf'
 

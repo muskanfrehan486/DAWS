@@ -9,7 +9,10 @@ router.get(
   "/documents/:id/workflow",
   authenticate,
   asyncHandler(async (req, res) => {
-    const workflow = await workflowService.getWorkflow(req.params.id as string);
+    const workflow = await workflowService.getWorkflow(
+      req.params.id as string,
+      req.supabaseUserId!
+    );
 
     res.json(workflow);
   })

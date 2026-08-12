@@ -30,6 +30,8 @@ export function mapApiStatusToUi(
       return 'approved'
     case 'REJECTED':
       return 'rejected'
+    case 'DELETED':
+      return 'deleted'
   }
 }
 

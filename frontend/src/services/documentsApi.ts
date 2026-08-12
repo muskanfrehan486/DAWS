@@ -73,3 +73,17 @@ export async function createDocument(input: CreateDocumentInput) {
   return res.json()
 }
 
+export async function deleteDocument(documentId: string) {
+  const res = await fetch(`/api/documents/${documentId}`, {
+    method: 'DELETE',
+    headers: { ...authHeaders() },
+  })
+
+  if (!res.ok) {
+    throw new Error(await parseApiError(res))
+  }
+
+  invalidateDocumentsCache()
+  return res.json() as Promise<{ message: string }>
+}
+

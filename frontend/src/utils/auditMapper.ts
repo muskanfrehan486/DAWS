@@ -11,12 +11,16 @@ const ACTION_LABELS: Record<ApiApprovalActionType, AuditActionLabel> = {
   APPROVE: 'Approved',
   REJECT: 'Rejected',
   REQUEST_REVISION: 'Revision Requested',
+  DOCUMENT_UPLOADED: 'Document Uploaded',
+  DOCUMENT_RESUBMITTED: 'Document Resubmitted',
+  DOCUMENT_DELETED: 'Document Deleted',
 }
 
 const ROLE_LABELS: Record<string, string> = {
   REVIEWER: 'Reviewer',
   APPROVER: 'Approver',
   FINAL_APPROVER: 'Final Approver',
+  Preparer: 'Preparer',
 }
 
 function formatTime(isoDate: string): string {
@@ -45,6 +49,7 @@ export function mapApiAuditEntryToRecord(entry: ApiAuditEntry): AuditRecord {
 
   return {
     id: entry.id,
+    occurredAt: entry.date,
     date: formatDisplayDate(entry.date),
     time: formatTime(entry.date),
     document: entry.documentTitle,

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 
 import StatusBadge from '../components/StatusBadge.tsx';
+import DownloadDocumentButton from '../components/DownloadDocumentButton.tsx';
 import { useDocuments } from '../hooks/useDocuments';
 import { formatDocumentId } from '../utils/format';
 import {
@@ -91,12 +92,14 @@ function WorkflowProgress({ doc }: { doc: DashboardDocument }) {
 }
 
 function DocumentActions({
+  doc,
   onOpen,
 }: {
+  doc: DashboardDocument;
   onOpen: () => void;
 }) {
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-1.5 flex-wrap">
       <button
         type="button"
         onClick={onOpen}
@@ -134,6 +137,12 @@ function DocumentActions({
         <GitBranch size={13} />
         Track
       </button>
+
+      <DownloadDocumentButton
+        documentId={doc.id}
+        versionNumber={doc.versionNumber}
+        disabled={doc.status === 'deleted'}
+      />
     </div>
   );
 }
@@ -236,7 +245,7 @@ function MobileDocumentCard({
           </p>
         </div>
 
-        <div>
+        <div className="col-span-2">
           <p className="
             text-[10px]
             uppercase
@@ -250,28 +259,12 @@ function MobileDocumentCard({
 
           <WorkflowProgress doc={doc} />
         </div>
-
-        <div>
-          <p className="
-            text-[10px]
-            uppercase
-            tracking-wide
-            font-medium
-            text-slate-400
-            mb-1
-          ">
-            Last Updated
-          </p>
-
-          <p className="text-xs text-slate-500">
-            {doc.lastUpdated}
-          </p>
-        </div>
       </div>
 
       {/* Actions */}
       <div className="mt-4 pt-3 border-t border-slate-100">
         <DocumentActions
+          doc={doc}
           onOpen={() => onOpen(doc.id)}
         />
       </div>
@@ -852,7 +845,7 @@ export default function MyDocuments({
                     'Current Holder',
                     'Workflow',
                     'Status',
-                    'Last Updated',
+                    'Download',
                   ].map(column => (
                     <th
                       key={column}
@@ -980,14 +973,13 @@ export default function MyDocuments({
                       />
                     </td>
 
-                    {/* Updated */}
-                    <td className="
-                      px-4 py-4
-                      text-xs
-                      text-slate-400
-                      whitespace-nowrap
-                    ">
-                      {doc.lastUpdated}
+                    {/* Download */}
+                    <td className="px-4 py-4">
+                      <DownloadDocumentButton
+                        documentId={doc.id}
+                        versionNumber={doc.versionNumber}
+                        disabled={doc.status === 'deleted'}
+                      />
                     </td>
                   </tr>
                 ))}

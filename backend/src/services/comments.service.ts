@@ -55,21 +55,9 @@ class CommentsService {
       throw errors.notFound("Document not found");
     }
 
-    // // Preparer can always comment
-    // if (document.preparerId !== userId) {
-    //   if (!document.currentWorkflowRun) {
-    //     throw errors.forbidden("You are not allowed to comment on this document.");
-    //   }
-
-    //   const currentStep = document.approvalChain?.steps.find(
-    //     (step) =>
-    //       step.stepOrder === document.currentWorkflowRun!.currentStepOrder
-    //   );
-
-    //   if (!currentStep || currentStep.assignedUserId !== userId) {
-    //     throw errors.forbidden("You are not allowed to comment on this document.");
-    //   }
-    // }
+    if (document.status === "DELETED") {
+      throw errors.badRequest("Cannot comment on a deleted document.");
+    }
 
     return prisma.documentComment.create({
       data: {

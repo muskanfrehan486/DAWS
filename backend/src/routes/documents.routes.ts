@@ -90,6 +90,19 @@ router.post(
   })
 );
 
+router.delete(
+  "/:id",
+  authenticate,
+  asyncHandler(async (req, res) => {
+    const result = await documentsService.deleteDocument(
+      req.params.id as string,
+      req.supabaseUserId!
+    );
+
+    res.json(result);
+  })
+);
+
 router.patch(
   "/:id",
   authenticate,

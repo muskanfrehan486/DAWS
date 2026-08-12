@@ -9,6 +9,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import StatusBadge from '../components/StatusBadge.tsx';
+import DownloadDocumentButton from '../components/DownloadDocumentButton';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { formatHeaderDate, formatDocumentId, getTimeGreeting } from '../utils/format';
 import type { Page } from '../App';
@@ -135,12 +136,14 @@ function WorkflowProgress({ doc }: { doc: DashboardDocument }) {
 }
 
 function DocumentActions({
+  doc,
   onView,
 }: {
+  doc: DashboardDocument;
   onView: () => void;
 }) {
   return (
-    <div className="flex items-center gap-2 pt-1">
+    <div className="flex items-center gap-2 pt-1 flex-wrap">
       <button
         type="button"
         onClick={onView}
@@ -178,6 +181,13 @@ function DocumentActions({
         <GitBranch size={13} />
         Track
       </button>
+
+      <DownloadDocumentButton
+        documentId={doc.id}
+        versionNumber={doc.versionNumber}
+        disabled={doc.status === 'deleted'}
+        className="min-h-[36px] flex items-center"
+      />
     </div>
   );
 }
@@ -263,27 +273,17 @@ function DocumentMobileCard({
           </p>
         </div>
 
-        <div>
+        <div className="col-span-2">
           <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-1">
             Workflow
           </p>
 
           <WorkflowProgress doc={doc} />
         </div>
-
-        <div>
-          <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-1">
-            Last updated
-          </p>
-
-          <p className="text-xs text-slate-500">
-            {doc.lastUpdated}
-          </p>
-        </div>
       </div>
 
       {/* Actions */}
-      <DocumentActions onView={() => onOpen(doc.id)} />
+      <DocumentActions doc={doc} onView={() => onOpen(doc.id)} />
     </div>
   );
 }
@@ -586,7 +586,7 @@ export default function UserDashboard({
                   'Current Holder',
                   'Workflow Step',
                   'Status',
-                  'Last Updated',
+                  'Download',
                 ].map(col => (
                   <th
                     key={col}
@@ -706,13 +706,12 @@ export default function UserDashboard({
                     />
                   </td>
 
-                  <td className="
-                    px-4 py-3
-                    text-xs
-                    text-slate-400
-                    whitespace-nowrap
-                  ">
-                    {doc.lastUpdated}
+                  <td className="px-4 py-3">
+                    <DownloadDocumentButton
+                      documentId={doc.id}
+                      versionNumber={doc.versionNumber}
+                      disabled={doc.status === 'deleted'}
+                    />
                   </td>
                 </tr>
               )))}

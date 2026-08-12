@@ -60,6 +60,7 @@ model Document {
   submittedAt                 DateTime?         @map("submitted_at") @db.Timestamptz(6)
   approvedAt                  DateTime?         @map("approved_at") @db.Timestamptz(6)
   rejectedAt                  DateTime?         @map("rejected_at") @db.Timestamptz(6)
+  deletedAt                   DateTime?         @map("deleted_at") @db.Timestamptz(6)
   createdAt                   DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                   DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
   approvalChain               ApprovalChain?
@@ -262,6 +263,7 @@ enum DocumentStatus {
   REVISION_REQUESTED
   REJECTED
   APPROVED
+  DELETED
 }
 
 enum WorkflowRunStatus {
@@ -283,6 +285,7 @@ enum NotificationType {
   REJECTED
   APPROVED
   RESUBMITTED
+  DOCUMENT_DELETED
 }
 
 enum AuditAction {
@@ -302,6 +305,7 @@ enum AuditAction {
   WORKFLOW_REVISION_REQUESTED
   WORKFLOW_REJECTED
   WORKFLOW_COMPLETED
+  DOCUMENT_DELETED
   NOTIFICATION_CREATED
   EMAIL_SENT
 }
