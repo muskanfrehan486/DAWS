@@ -25,6 +25,10 @@ const STATUS_CONFIG: Record<DocumentStatus, { label: string; className: string }
     label: 'Rejected',
     className: 'bg-red-50 text-red-700 border border-red-200',
   },
+  deleted: {
+    label: 'Deleted',
+    className: 'bg-slate-100 text-slate-600 border border-slate-300',
+  },
 };
 
 export default function StatusBadge({ status, size = 'sm' }: { status: DocumentStatus; size?: 'xs' | 'sm' }) {
@@ -40,7 +44,8 @@ export default function StatusBadge({ status, size = 'sm' }: { status: DocumentS
             status === 'pending_review' ? '#0f6cbd' :
             status === 'pending_approval' ? '#d97706' :
             status === 'revision_requested' ? '#7c3aed' :
-            status === 'approved' ? '#059669' : '#dc2626',
+            status === 'approved' ? '#059669' :
+            status === 'deleted' ? '#64748b' : '#dc2626',
         }}
       />
       {config.label}

@@ -2,6 +2,7 @@ import { prisma } from "../prisma";
 import { errors } from "../lib/errors";
 import { AuditAction, Prisma } from "../generated/prisma/client";
 import { buildCsv } from "../utils/csv";
+import { prismaDocumentAccessFilter } from "../lib/documentAccess";
 
 type CreateAuditLogInput = {
   actorId?: string;
@@ -35,34 +36,25 @@ type DocumentAuditEntry = AuditHistoryEntry & {
   documentStatus: string;
 };
 
+const DOCUMENT_LIFECYCLE_AUDIT_ACTIONS: AuditAction[] = [
+  "DOCUMENT_SUBMITTED",
+  "DOCUMENT_CREATED",
+  "DOCUMENT_DELETED",
+];
+
 class AuditService {
   private documentAccessFilter(userId: string): Prisma.DocumentWhereInput {
-    return {
-      OR: [
-        { preparerId: userId },
-        {
-          approvalChain: {
-            steps: {
-              some: {
-                assignedUserId: userId,
-              },
-            },
-          },
-        },
-      ],
-    };
+    return prismaDocumentAccessFilter(userId);
   }
 
-  private mapActionToHistoryEntry(
-    action: {
-      id: string;
-      createdAt: Date;
-      approvalType: string;
-      action: string;
-      comment: string | null;
-      actor: { id: string; firstName: string; lastName: string };
-    }
-  ): AuditHistoryEntry {
+  private mapActionToHistoryEntry(action: {
+    id: string;
+    createdAt: Date;
+    approvalType: string;
+    action: string;
+    comment: string | null;
+    actor: { id: string; firstName: string; lastName: string };
+  }): AuditHistoryEntry {
     return {
       id: action.id,
       date: action.createdAt,
@@ -72,6 +64,122 @@ class AuditService {
       action: action.action,
       comments: action.comment,
     };
+  }
+
+  private mapDocumentUploadAction(
+    action: AuditAction,
+    oldValue: Prisma.JsonValue | null,
+    newValue: Prisma.JsonValue | null
+  ): string {
+    const oldStatus =
+      oldValue &&
+      typeof oldValue === "object" &&
+      !Array.isArray(oldValue) &&
+      "status" in oldValue
+        ? String((oldValue as { status?: unknown }).status)
+        : null;
+
+    if (action === "DOCUMENT_SUBMITTED" && oldStatus === "REVISION_REQUESTED") {
+      return "DOCUMENT_RESUBMITTED";
+    }
+
+    if (
+      action === "DOCUMENT_SUBMITTED" ||
+      action === "DOCUMENT_CREATED"
+    ) {
+      return "DOCUMENT_UPLOADED";
+    }
+
+    if (action === "DOCUMENT_DELETED") {
+      return "DOCUMENT_DELETED";
+    }
+
+    return action;
+  }
+
+  private buildUploadComment(
+    newValue: Prisma.JsonValue | null
+  ): string | null {
+    if (
+      newValue &&
+      typeof newValue === "object" &&
+      !Array.isArray(newValue) &&
+      "versionNumber" in newValue
+    ) {
+      return `Version ${String((newValue as { versionNumber?: unknown }).versionNumber)}`;
+    }
+
+    return null;
+  }
+
+  private mapAuditLogToHistoryEntry(log: {
+    id: string;
+    createdAt: Date;
+    action: AuditAction;
+    oldValue: Prisma.JsonValue | null;
+    newValue: Prisma.JsonValue | null;
+    actor: { id: string; firstName: string; lastName: string } | null;
+  }): AuditHistoryEntry {
+    if (!log.actor) {
+      throw errors.internal("Document upload audit log is missing actor.");
+    }
+
+    return {
+      id: log.id,
+      date: log.createdAt,
+      time: log.createdAt,
+      user: log.actor,
+      role: "Preparer",
+      action: this.mapDocumentUploadAction(
+        log.action,
+        log.oldValue,
+        log.newValue
+      ),
+      comments: this.buildUploadComment(log.newValue),
+    };
+  }
+
+  private sortHistoryEntries(entries: AuditHistoryEntry[]): AuditHistoryEntry[] {
+    return [...entries].sort(
+      (a, b) => b.date.getTime() - a.date.getTime()
+    );
+  }
+
+  private async getAccessibleDocumentIds(userId: string): Promise<string[]> {
+    const documents = await prisma.document.findMany({
+      where: this.documentAccessFilter(userId),
+      select: { id: true },
+    });
+
+    return documents.map((document) => document.id);
+  }
+
+  private async fetchDocumentUploadLogs(
+    documentIds: string[]
+  ) {
+    if (documentIds.length === 0) {
+      return [];
+    }
+
+    return prisma.auditLog.findMany({
+      where: {
+        entityType: "Document",
+        entityId: { in: documentIds },
+        action: { in: DOCUMENT_LIFECYCLE_AUDIT_ACTIONS },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      include: {
+        actor: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
   }
 
   private async assertDocumentAccess(documentId: string, userId: string) {
@@ -117,27 +225,35 @@ class AuditService {
   async getDocumentAuditHistory(documentId: string, userId: string) {
     await this.assertDocumentAccess(documentId, userId);
 
-    const actions = await prisma.approvalAction.findMany({
-      where: {
-        workflowRun: {
-          documentId,
-        },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-      include: {
-        actor: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
+    const [actions, uploadLogs] = await Promise.all([
+      prisma.approvalAction.findMany({
+        where: {
+          workflowRun: {
+            documentId,
           },
         },
-      },
-    });
+        orderBy: {
+          createdAt: "desc",
+        },
+        include: {
+          actor: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+      }),
+      this.fetchDocumentUploadLogs([documentId]),
+    ]);
 
-    return actions.map((action) => this.mapActionToHistoryEntry(action));
+    const history = [
+      ...actions.map((action) => this.mapActionToHistoryEntry(action)),
+      ...uploadLogs.map((log) => this.mapAuditLogToHistoryEntry(log)),
+    ];
+
+    return this.sortHistoryEntries(history);
   }
 
   private formatUserName(user: {
@@ -196,44 +312,100 @@ class AuditService {
   }
 
   async getAllDocumentsAuditHistory(userId: string, limit?: number) {
-    const actions = await prisma.approvalAction.findMany({
-      where: {
-        workflowRun: {
-          document: this.documentAccessFilter(userId),
-        },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-      ...(limit !== undefined && { take: limit }),
-      include: {
-        actor: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
+    const accessibleDocumentIds = await this.getAccessibleDocumentIds(userId);
+
+    const [actions, uploadLogs, documents] = await Promise.all([
+      prisma.approvalAction.findMany({
+        where: {
+          workflowRun: {
+            document: this.documentAccessFilter(userId),
           },
         },
-        workflowRun: {
-          include: {
-            document: {
-              select: {
-                id: true,
-                title: true,
-                status: true,
+        orderBy: {
+          createdAt: "desc",
+        },
+        ...(limit !== undefined && { take: limit }),
+        include: {
+          actor: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+          workflowRun: {
+            include: {
+              document: {
+                select: {
+                  id: true,
+                  title: true,
+                  status: true,
+                },
               },
             },
           },
         },
-      },
+      }),
+      this.fetchDocumentUploadLogs(accessibleDocumentIds),
+      prisma.document.findMany({
+        where: {
+          id: { in: accessibleDocumentIds },
+        },
+        select: {
+          id: true,
+          title: true,
+          status: true,
+        },
+      }),
+    ]);
+
+    const documentMap = new Map(
+      documents.map((document) => [document.id, document])
+    );
+
+    const approvalEntries = actions.map(
+      (action): DocumentAuditEntry => ({
+        documentId: action.workflowRun.document.id,
+        documentTitle: action.workflowRun.document.title,
+        documentStatus: action.workflowRun.document.status,
+        ...this.mapActionToHistoryEntry(action),
+      })
+    );
+
+    const uploadEntries = uploadLogs.flatMap((log) => {
+      const document = documentMap.get(log.entityId);
+      if (!document) {
+        return [];
+      }
+
+      return [
+        {
+          documentId: document.id,
+          documentTitle: document.title,
+          documentStatus: document.status,
+          ...this.mapAuditLogToHistoryEntry(log),
+        },
+      ];
     });
 
-    return actions.map((action): DocumentAuditEntry => ({
-      documentId: action.workflowRun.document.id,
-      documentTitle: action.workflowRun.document.title,
-      documentStatus: action.workflowRun.document.status,
-      ...this.mapActionToHistoryEntry(action),
-    }));
+    const merged = this.sortDocumentAuditEntries([
+      ...approvalEntries,
+      ...uploadEntries,
+    ]);
+
+    if (limit !== undefined) {
+      return merged.slice(0, limit);
+    }
+
+    return merged;
+  }
+
+  private sortDocumentAuditEntries(
+    entries: DocumentAuditEntry[]
+  ): DocumentAuditEntry[] {
+    return [...entries].sort(
+      (a, b) => b.date.getTime() - a.date.getTime()
+    );
   }
 }
 

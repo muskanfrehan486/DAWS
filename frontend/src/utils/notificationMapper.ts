@@ -20,6 +20,8 @@ export function mapNotificationCategory(
       return 'rejected'
     case 'RESUBMITTED':
       return 'submitted'
+    case 'DOCUMENT_DELETED':
+      return 'deleted'
   }
 }
 

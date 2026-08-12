@@ -1,4 +1,4 @@
-import type { AuditRecord } from '../types/audit'
+import type { AuditDocumentGroup, AuditRecord } from '../types/audit'
 import { formatDocumentId } from './format'
 
 export function filterAuditRecords(
@@ -21,4 +21,41 @@ export function filterAuditRecords(
 
     return matchesSearch && matchesAction
   })
+}
+
+function sortRecordsNewestFirst(records: AuditRecord[]): AuditRecord[] {
+  return [...records].sort(
+    (a, b) =>
+      new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime(),
+  )
+}
+
+export function groupAuditRecordsByDocument(
+  records: AuditRecord[],
+): AuditDocumentGroup[] {
+  const grouped = new Map<string, AuditRecord[]>()
+
+  for (const record of records) {
+    const existing = grouped.get(record.documentId) ?? []
+    existing.push(record)
+    grouped.set(record.documentId, existing)
+  }
+
+  return Array.from(grouped.entries())
+    .map(([documentId, actions]) => {
+      const sortedActions = sortRecordsNewestFirst(actions)
+
+      return {
+        documentId,
+        document: sortedActions[0].document,
+        documentStatus: sortedActions[0].documentStatus,
+        actions: sortedActions,
+        latestAction: sortedActions[0],
+      }
+    })
+    .sort(
+      (a, b) =>
+        new Date(b.latestAction.occurredAt).getTime() -
+        new Date(a.latestAction.occurredAt).getTime(),
+    )
 }

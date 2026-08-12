@@ -4,6 +4,8 @@ import {
   ChevronDown,
   FileText,
   Loader2,
+  Plus,
+  Minus,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useAuditTrail } from '../hooks/useAuditTrail';
@@ -11,15 +13,20 @@ import {
   downloadAuditCsv,
   downloadDocumentAuditCsv,
 } from '../services/auditApi';
-import { filterAuditRecords } from '../utils/auditFilters';
+import {
+  filterAuditRecords,
+  groupAuditRecordsByDocument,
+} from '../utils/auditFilters';
 import { formatDocumentId } from '../utils/format';
-import type { AuditActionLabel } from '../types/audit';
-import type { AuditRecord } from '../types/audit';
+import type { AuditActionLabel, AuditDocumentGroup, AuditRecord } from '../types/audit';
 
 const actionStyles: Record<AuditActionLabel, string> = {
   Approved: 'bg-emerald-50 text-emerald-700',
   Rejected: 'bg-red-50 text-red-700',
   'Revision Requested': 'bg-violet-50 text-violet-700',
+  'Document Uploaded': 'bg-blue-50 text-blue-700',
+  'Document Resubmitted': 'bg-sky-50 text-sky-700',
+  'Document Deleted': 'bg-slate-100 text-slate-600',
 };
 
 function ActionBadge({ action }: { action: AuditActionLabel }) {
@@ -60,57 +67,279 @@ function DownloadButton({
   );
 }
 
-function AuditMobileCard({
+function ExpandButton({
+  expanded,
+  onClick,
+  actionCount,
+}: {
+  expanded: boolean;
+  onClick: () => void;
+  actionCount: number;
+}) {
+  if (actionCount <= 1) {
+    return <span className="inline-block w-7" aria-hidden="true" />;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-expanded={expanded}
+      aria-label={expanded ? 'Hide actions' : 'Show actions'}
+      className="inline-flex items-center justify-center w-7 h-7 rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors"
+    >
+      {expanded ? <Minus size={14} /> : <Plus size={14} />}
+    </button>
+  );
+}
+
+function AuditActionRow({
   record,
+  showDocument = false,
+}: {
+  record: AuditRecord;
+  showDocument?: boolean;
+}) {
+  return (
+    <tr className="border-b border-slate-100 last:border-b-0 bg-slate-50/60">
+      <td className="px-4 py-3" />
+      <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{record.date}</td>
+      <td className="px-4 py-3 font-mono text-slate-600 whitespace-nowrap">
+        {record.time}
+      </td>
+      <td className="px-4 py-3">
+        {showDocument ? (
+          <div className="max-w-[210px] pl-2 border-l-2 border-slate-200">
+            <p className="font-medium text-slate-800 truncate">{record.document}</p>
+            <p className="text-[10px] font-mono text-slate-400 mt-1">
+              {formatDocumentId(record.documentId)}
+            </p>
+          </div>
+        ) : (
+          <span className="text-slate-300">—</span>
+        )}
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2">
+          <UserAvatar initials={record.initials} />
+          <span className="text-slate-700 whitespace-nowrap">{record.user}</span>
+        </div>
+      </td>
+      <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{record.role}</td>
+      <td className="px-4 py-3">
+        <ActionBadge action={record.action} />
+      </td>
+      <td className="px-4 py-3">
+        <p className="max-w-[150px] text-xs text-slate-500 truncate">
+          {record.comments}
+        </p>
+      </td>
+      <td className="px-4 py-3" />
+    </tr>
+  );
+}
+
+function AuditDocumentGroupRow({
+  group,
+  expanded,
+  onToggle,
   onDownload,
   downloading,
 }: {
-  record: AuditRecord;
+  group: AuditDocumentGroup;
+  expanded: boolean;
+  onToggle: () => void;
   onDownload: (documentId: string) => void;
   downloading: boolean;
 }) {
+  const { latestAction, actions } = group;
+  const hasMultipleActions = actions.length > 1;
+
+  return (
+    <>
+      <tr className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/50 transition-colors">
+        <td className="px-4 py-3">
+          <ExpandButton
+            expanded={expanded}
+            onClick={onToggle}
+            actionCount={actions.length}
+          />
+        </td>
+        <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+          {latestAction.date}
+        </td>
+        <td className="px-4 py-3 font-mono text-slate-600 whitespace-nowrap">
+          {latestAction.time}
+        </td>
+        <td className="px-4 py-3">
+          <div className="max-w-[210px]">
+            <p className="font-medium text-slate-800 truncate">{group.document}</p>
+            <p className="text-[10px] font-mono text-slate-400 mt-1">
+              {formatDocumentId(group.documentId)}
+            </p>
+            {hasMultipleActions && (
+              <p className="text-[10px] text-slate-400 mt-1">
+                {actions.length} actions
+              </p>
+            )}
+          </div>
+        </td>
+        <td className="px-4 py-3">
+          {hasMultipleActions ? (
+            <span className="text-xs text-slate-400">
+              {expanded ? 'All actions below' : 'Multiple users'}
+            </span>
+          ) : (
+            <div className="flex items-center gap-2">
+              <UserAvatar initials={latestAction.initials} />
+              <span className="text-slate-700 whitespace-nowrap">
+                {latestAction.user}
+              </span>
+            </div>
+          )}
+        </td>
+        <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+          {hasMultipleActions ? '—' : latestAction.role}
+        </td>
+        <td className="px-4 py-3">
+          {hasMultipleActions && !expanded ? (
+            <span className="text-xs text-slate-400">Various</span>
+          ) : (
+            <ActionBadge action={latestAction.action} />
+          )}
+        </td>
+        <td className="px-4 py-3">
+          <p className="max-w-[150px] text-xs text-slate-500 truncate">
+            {hasMultipleActions ? '—' : latestAction.comments}
+          </p>
+        </td>
+        <td className="px-4 py-3">
+          <DownloadButton
+            onClick={() => onDownload(group.documentId)}
+            loading={downloading}
+          />
+        </td>
+      </tr>
+
+      {expanded &&
+        actions.map(record => (
+          <AuditActionRow key={record.id} record={record} />
+        ))}
+    </>
+  );
+}
+
+function AuditMobileGroupCard({
+  group,
+  expanded,
+  onToggle,
+  onDownload,
+  downloading,
+}: {
+  group: AuditDocumentGroup;
+  expanded: boolean;
+  onToggle: () => void;
+  onDownload: (documentId: string) => void;
+  downloading: boolean;
+}) {
+  const { latestAction, actions } = group;
+  const hasMultipleActions = actions.length > 1;
+
   return (
     <article className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-slate-900">{record.document}</p>
-          <p className="text-[10px] font-mono text-slate-400 mt-1">
-            {formatDocumentId(record.documentId)}
-          </p>
-        </div>
-        <ActionBadge action={record.action} />
-      </div>
-
-      <div className="border-t border-slate-100 my-3" />
-
-      <div className="flex items-center gap-2.5">
-        <UserAvatar initials={record.initials} />
-        <div>
-          <p className="text-xs font-medium text-slate-800">{record.user}</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">{record.role}</p>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2 mt-3 text-[11px] text-slate-500">
-        <span>{record.date}</span>
-        <span className="text-slate-300">•</span>
-        <span>{record.time}</span>
-      </div>
-
-      {record.comments !== '—' && (
-        <div className="mt-3">
-          <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-1">
-            Comments
-          </p>
-          <p className="text-xs text-slate-600 leading-relaxed">{record.comments}</p>
-        </div>
-      )}
-
-      <div className="mt-3 pt-3 border-t border-slate-100 flex justify-end">
-        <DownloadButton
-          onClick={() => onDownload(record.documentId)}
-          loading={downloading}
+      <div className="flex items-start gap-3">
+        <ExpandButton
+          expanded={expanded}
+          onClick={onToggle}
+          actionCount={actions.length}
         />
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-slate-900">{group.document}</p>
+              <p className="text-[10px] font-mono text-slate-400 mt-1">
+                {formatDocumentId(group.documentId)}
+              </p>
+              {hasMultipleActions && (
+                <p className="text-[10px] text-slate-400 mt-1">
+                  {actions.length} actions
+                </p>
+              )}
+            </div>
+            <ActionBadge action={latestAction.action} />
+          </div>
+
+          {!expanded || !hasMultipleActions ? (
+            <>
+              <div className="border-t border-slate-100 my-3" />
+
+              <div className="flex items-center gap-2.5">
+                <UserAvatar initials={latestAction.initials} />
+                <div>
+                  <p className="text-xs font-medium text-slate-800">{latestAction.user}</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">{latestAction.role}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 mt-3 text-[11px] text-slate-500">
+                <span>{latestAction.date}</span>
+                <span className="text-slate-300">•</span>
+                <span>{latestAction.time}</span>
+              </div>
+
+              {latestAction.comments !== '—' && (
+                <div className="mt-3">
+                  <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-1">
+                    Comments
+                  </p>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    {latestAction.comments}
+                  </p>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="mt-3 space-y-3">
+              {actions.map(record => (
+                <div
+                  key={record.id}
+                  className="rounded-lg border border-slate-100 bg-slate-50/70 p-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <UserAvatar initials={record.initials} />
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-slate-800">{record.user}</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">{record.role}</p>
+                      </div>
+                    </div>
+                    <ActionBadge action={record.action} />
+                  </div>
+
+                  <div className="flex items-center gap-2 mt-2 text-[11px] text-slate-500">
+                    <span>{record.date}</span>
+                    <span className="text-slate-300">•</span>
+                    <span>{record.time}</span>
+                  </div>
+
+                  {record.comments !== '—' && (
+                    <p className="text-xs text-slate-600 leading-relaxed mt-2">
+                      {record.comments}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-3 pt-3 border-t border-slate-100 flex justify-end">
+            <DownloadButton
+              onClick={() => onDownload(group.documentId)}
+              loading={downloading}
+            />
+          </div>
+        </div>
       </div>
     </article>
   );
@@ -120,14 +349,27 @@ export default function AuditTrail() {
   const { records, actionFilterOptions, loading, error, refetch } = useAuditTrail();
   const [search, setSearch] = useState('');
   const [actionFilter, setActionFilter] = useState('All Actions');
+  const [expandedDocuments, setExpandedDocuments] = useState<Set<string>>(new Set());
   const [exportingAll, setExportingAll] = useState(false);
   const [exportingDocumentId, setExportingDocumentId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const filteredRecords = useMemo(
-    () => filterAuditRecords(records, search, actionFilter),
-    [records, search, actionFilter],
-  );
+  const filteredGroups = useMemo(() => {
+    const filteredRecords = filterAuditRecords(records, search, actionFilter);
+    return groupAuditRecordsByDocument(filteredRecords);
+  }, [records, search, actionFilter]);
+
+  const toggleDocument = (documentId: string) => {
+    setExpandedDocuments(current => {
+      const next = new Set(current);
+      if (next.has(documentId)) {
+        next.delete(documentId);
+      } else {
+        next.add(documentId);
+      }
+      return next;
+    });
+  };
 
   const handleExportAll = async () => {
     setActionError(null);
@@ -240,20 +482,22 @@ export default function AuditTrail() {
           </div>
 
           <div className="flex items-center justify-center lg:px-2 text-xs text-slate-400 whitespace-nowrap">
-            {filteredRecords.length} records
+            {filteredGroups.length} document{filteredGroups.length !== 1 ? 's' : ''}
           </div>
         </div>
       </section>
 
-      {filteredRecords.length > 0 && (
+      {filteredGroups.length > 0 && (
         <>
           <div className="block lg:hidden space-y-2.5">
-            {filteredRecords.map(record => (
-              <AuditMobileCard
-                key={record.id}
-                record={record}
+            {filteredGroups.map(group => (
+              <AuditMobileGroupCard
+                key={group.documentId}
+                group={group}
+                expanded={expandedDocuments.has(group.documentId)}
+                onToggle={() => toggleDocument(group.documentId)}
                 onDownload={handleExportDocument}
-                downloading={exportingDocumentId === record.documentId}
+                downloading={exportingDocumentId === group.documentId}
               />
             ))}
           </div>
@@ -263,6 +507,7 @@ export default function AuditTrail() {
               <table className="w-full min-w-[1050px] text-sm">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="w-12 px-4 py-3" aria-label="Expand" />
                     {['DATE', 'TIME', 'DOCUMENT', 'USER', 'ROLE', 'ACTION', 'COMMENTS', 'DOWNLOAD'].map(
                       column => (
                         <th
@@ -276,45 +521,15 @@ export default function AuditTrail() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredRecords.map(record => (
-                    <tr
-                      key={record.id}
-                      className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/50 transition-colors"
-                    >
-                      <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{record.date}</td>
-                      <td className="px-4 py-3 font-mono text-slate-600 whitespace-nowrap">
-                        {record.time}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="max-w-[210px]">
-                          <p className="font-medium text-slate-800 truncate">{record.document}</p>
-                          <p className="text-[10px] font-mono text-slate-400 mt-1">
-                            {formatDocumentId(record.documentId)}
-                          </p>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <UserAvatar initials={record.initials} />
-                          <span className="text-slate-700 whitespace-nowrap">{record.user}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{record.role}</td>
-                      <td className="px-4 py-3">
-                        <ActionBadge action={record.action} />
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="max-w-[150px] text-xs text-slate-500 truncate">
-                          {record.comments}
-                        </p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <DownloadButton
-                          onClick={() => handleExportDocument(record.documentId)}
-                          loading={exportingDocumentId === record.documentId}
-                        />
-                      </td>
-                    </tr>
+                  {filteredGroups.map(group => (
+                    <AuditDocumentGroupRow
+                      key={group.documentId}
+                      group={group}
+                      expanded={expandedDocuments.has(group.documentId)}
+                      onToggle={() => toggleDocument(group.documentId)}
+                      onDownload={handleExportDocument}
+                      downloading={exportingDocumentId === group.documentId}
+                    />
                   ))}
                 </tbody>
               </table>
@@ -323,7 +538,7 @@ export default function AuditTrail() {
         </>
       )}
 
-      {filteredRecords.length === 0 && (
+      {filteredGroups.length === 0 && (
         <div className="bg-white border border-slate-200 rounded-xl py-12 text-center mt-3">
           <FileText size={28} className="mx-auto text-slate-300" />
           <p className="mt-3 text-sm font-medium text-slate-700">No audit records found</p>

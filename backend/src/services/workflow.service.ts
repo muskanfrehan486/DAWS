@@ -1,8 +1,9 @@
 import { prisma } from "../prisma";
 import { errors } from "../lib/errors";
+import { canUserViewDocument, documentHasUserActed } from "../lib/documentAccess";
 
 class WorkflowService {
-  async getWorkflow(documentId: string) {
+  async getWorkflow(documentId: string, userId: string) {
     const document = await prisma.document.findUnique({
       where: {
         id: documentId,
@@ -41,11 +42,40 @@ class WorkflowService {
             },
           },
         },
+        workflowRuns: {
+          select: {
+            currentStepOrder: true,
+            actions: {
+              where: { actorId: userId },
+              select: { id: true },
+              take: 1,
+            },
+          },
+        },
       },
     });
 
     if (!document) {
       throw errors.notFound("Document not found.");
+    }
+
+    if (
+      !canUserViewDocument({
+        preparerId: document.preparerId,
+        userId,
+        approvalChain: document.approvalChain,
+        currentWorkflowRun: document.currentWorkflowRun
+          ? {
+              status: document.currentWorkflowRun.status,
+              currentStepOrder: document.currentWorkflowRun.currentStepOrder,
+              chain: document.approvalChain,
+            }
+          : null,
+        workflowRunHistory: document.workflowRuns,
+        hasUserActed: documentHasUserActed(document.workflowRuns),
+      })
+    ) {
+      throw errors.forbidden("Access denied.");
     }
 
     if (document.status === "REVISION_REQUESTED") {

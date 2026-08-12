@@ -21,7 +21,7 @@ const NAV_ITEMS: { id: Page; label: string; icon: typeof LayoutDashboard; divide
   { id: 'pending-approvals', label: 'Pending Approvals', icon: Clock },
   { id: 'submit-document', label: 'Submit Document', icon: Upload },
   { id: 'notifications', label: 'Notifications', icon: Bell, dividerBefore: true },
-  { id: 'audit-trail', label: 'Audit Trail', icon: ClipboardList },
+  { id: 'audit-trail', label: 'Approval Log', icon: ClipboardList },
 //   { id: 'reports', label: 'Reports', icon: BarChart2 },
 ];
 
@@ -177,7 +177,6 @@ export default function AppShell({ children, activePage, onNavigate, onLogout, s
                 <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-blue-500 border-2 border-white" />
               )}
             </button>)}
-
             {/* User */}
             <div className="relative">
               <button

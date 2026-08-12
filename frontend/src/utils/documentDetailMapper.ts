@@ -65,6 +65,12 @@ function mapAuditActionLabel(action: string): string {
       return 'Rejected'
     case 'REQUEST_REVISION':
       return 'Revision Requested'
+    case 'DOCUMENT_UPLOADED':
+      return 'Document Uploaded'
+    case 'DOCUMENT_RESUBMITTED':
+      return 'Document Resubmitted'
+    case 'DOCUMENT_DELETED':
+      return 'Document Deleted'
     default:
       return action
   }
@@ -84,6 +90,7 @@ export function buildDocumentDetailView(
     title: document.title,
     description: document.description?.trim() || 'No description provided.',
     status: mapApiStatusToUi(document.status, document.currentStep),
+    preparerId: document.preparerId,
     preparerName: formatFullName(
       document.preparer.firstName,
       document.preparer.lastName,
@@ -112,7 +119,7 @@ export function buildDocumentDetailView(
       },
       { label: 'CURRENT HOLDER', value: currentHolder },
       { label: 'LAST UPDATED', value: formatDisplayDate(document.updatedAt) },
-      { label: 'STATUS', value: document.status.replace(/_/g, ' ') },
+      { label: 'STATUS', value: document.status === 'DELETED' ? 'DELETED' : document.status.replace(/_/g, ' ') },
     ],
   }
 }

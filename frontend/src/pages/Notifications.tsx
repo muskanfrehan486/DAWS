@@ -6,6 +6,7 @@ import {
   XCircle,
   FileText,
   Loader2,
+  Trash2,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useNotifications } from '../hooks/useNotifications';
@@ -52,6 +53,13 @@ const notificationStyles: Record<
   },
   submitted: {
     icon: FileText,
+    iconBg: 'bg-slate-100',
+    iconColor: 'text-slate-600',
+    badgeBg: 'bg-slate-100',
+    badgeColor: 'text-slate-600',
+  },
+  deleted: {
+    icon: Trash2,
     iconBg: 'bg-slate-100',
     iconColor: 'text-slate-600',
     badgeBg: 'bg-slate-100',

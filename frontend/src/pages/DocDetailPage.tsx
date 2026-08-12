@@ -11,6 +11,7 @@ import {
   MessageSquare,
   MoreHorizontal,
   RotateCcw,
+  Trash2,
   Upload,
   User,
 } from 'lucide-react'
@@ -20,10 +21,12 @@ import Modal from '../components/Modal'
 import PdfDocumentViewer from '../components/PdfDocumentViewer'
 import SignApproveModal from '../components/SignApproveModal'
 import StatusBadge from '../components/StatusBadge'
+import { useCurrentUser } from '../contexts/CurrentUserContext'
 import { useDocumentDetail } from '../hooks/useDocumentDetail'
 import { requestRevision } from '../services/approvalApi'
 import { downloadDocumentAuditCsv } from '../services/auditApi'
 import { fetchDocumentFile, resubmitDocument } from '../services/documentDetailApi'
+import { deleteDocument } from '../services/documentsApi'
 import type {
   CommentView,
   DocumentAuditView,
@@ -247,6 +250,7 @@ function DocumentPreview({
   documentId,
   fileName,
   versionNumber,
+  isDeleted = false,
   canApprove,
   canResubmit,
   resubmitLoading,
@@ -259,6 +263,7 @@ function DocumentPreview({
   documentId: string
   fileName: string
   versionNumber: number
+  isDeleted?: boolean
   canApprove?: boolean
   canResubmit?: boolean
   resubmitLoading?: boolean
@@ -270,10 +275,17 @@ function DocumentPreview({
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [pdfFile, setPdfFile] = useState<Blob | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!isDeleted)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (isDeleted) {
+      setPdfFile(null)
+      setLoading(false)
+      setError(null)
+      return
+    }
+
     let cancelled = false
     setLoading(true)
     setError(null)
@@ -294,7 +306,24 @@ function DocumentPreview({
     return () => {
       cancelled = true
     }
-  }, [documentId, versionNumber])
+  }, [documentId, versionNumber, isDeleted])
+
+  if (isDeleted) {
+    return (
+      <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <div className="px-4 sm:px-5 py-10 text-center">
+          <Trash2 size={32} className="mx-auto text-slate-300 mb-3" />
+          <h2 className="text-sm sm:text-base font-semibold text-slate-900">
+            Document deleted by preparer
+          </h2>
+          <p className="mt-2 text-xs sm:text-sm text-slate-500 max-w-md mx-auto">
+            The preparer removed this document and its files. The workflow has
+            stopped, but the record remains visible for audit purposes.
+          </p>
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
@@ -494,7 +523,7 @@ function AuditHistoryTab({
     <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
       <div className="px-4 sm:px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-sm sm:text-base font-semibold text-slate-900">Audit History</h2>
+          <h2 className="text-sm sm:text-base font-semibold text-slate-900">Approval Log</h2>
           <p className="text-xs text-slate-400 mt-1">Complete action history for this document</p>
         </div>
         <button
@@ -590,6 +619,10 @@ export default function DocumentDetail({
   const [revisionError, setRevisionError] = useState<string | null>(null)
   const [resubmitLoading, setResubmitLoading] = useState(false)
   const [resubmitError, setResubmitError] = useState<string | null>(null)
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const { user } = useCurrentUser()
   const { data, loading, error, commentLoading, refetch, addComment } =
     useDocumentDetail(documentId)
 
@@ -666,11 +699,26 @@ export default function DocumentDetail({
     }
   }
 
+  const handleDelete = async () => {
+    setDeleteLoading(true)
+    setDeleteError(null)
+
+    try {
+      await deleteDocument(documentId)
+      setDeleteModalOpen(false)
+      await refetch()
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete document')
+    } finally {
+      setDeleteLoading(false)
+    }
+  }
+
   const tabs: { id: Tab; label: string }[] = [
     { id: 'overview', label: 'Document Overview' },
     { id: 'workflow', label: 'Approval Workflow' },
     { id: 'comments', label: 'Comments' },
-    { id: 'audit', label: 'Audit History' },
+    { id: 'audit', label: 'Approval Log' },
   ]
 
   if (loading) {
@@ -711,6 +759,8 @@ export default function DocumentDetail({
   }
 
   const { document, workflowSteps, completedSteps, totalSteps, reviewers, approvers, workflowSummary, comments, auditRecords, canApprove, canResubmit, pendingActionType } = data
+  const isDeleted = document.status === 'deleted'
+  const canDelete = user?.id === document.preparerId && !isDeleted
 
   return (
     <main className="w-full max-w-[1400px] mx-auto px-3 sm:px-5 lg:px-6 py-4 sm:py-6">
@@ -772,19 +822,34 @@ export default function DocumentDetail({
           </div>
 
           <div className="flex gap-2 w-full lg:w-auto flex-shrink-0 flex-wrap">
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('overview')
-                setTimeout(() => {
-                  window.document.getElementById('document-preview')?.scrollIntoView({ behavior: 'smooth' })
-                }, 0)
-              }}
-              className="flex-1 lg:flex-none inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs sm:text-sm font-medium hover:bg-slate-50"
-            >
-              <Eye size={15} />
-              Preview
-            </button>
+            {canDelete && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteError(null)
+                  setDeleteModalOpen(true)
+                }}
+                className="flex-1 lg:flex-none inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg border border-red-200 bg-red-50 text-red-700 text-xs sm:text-sm font-medium hover:bg-red-100"
+              >
+                <Trash2 size={15} />
+                Delete
+              </button>
+            )}
+            {!isDeleted && (
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('overview')
+                  setTimeout(() => {
+                    window.document.getElementById('document-preview')?.scrollIntoView({ behavior: 'smooth' })
+                  }, 0)
+                }}
+                className="flex-1 lg:flex-none inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs sm:text-sm font-medium hover:bg-slate-50"
+              >
+                <Eye size={15} />
+                Preview
+              </button>
+            )}
             <button
               type="button"
               className="hidden sm:flex lg:hidden w-10 h-10 items-center justify-center rounded-lg border border-slate-200 text-slate-500"
@@ -795,7 +860,16 @@ export default function DocumentDetail({
         </div>
       </section>
 
-      {canResubmit && (
+      {isDeleted && (
+        <section className="bg-slate-50 border border-slate-200 rounded-xl p-4 sm:p-5 mb-4">
+          <p className="text-sm font-medium text-slate-900">Document deleted by preparer</p>
+          <p className="mt-1 text-xs sm:text-sm text-slate-600">
+            The preparer removed this document. The workflow has stopped and the file is no longer available.
+          </p>
+        </section>
+      )}
+
+      {canResubmit && !isDeleted && (
         <section className="bg-violet-50 border border-violet-200 rounded-xl p-4 sm:p-5 mb-4">
           <p className="text-sm font-medium text-violet-900">Revision requested</p>
           <p className="mt-1 text-xs sm:text-sm text-violet-700">
@@ -839,8 +913,9 @@ export default function DocumentDetail({
                 documentId={documentId}
                 fileName={document.fileName}
                 versionNumber={document.versionNumber}
-                canApprove={canApprove}
-                canResubmit={canResubmit}
+                isDeleted={isDeleted}
+                canApprove={canApprove && !isDeleted}
+                canResubmit={canResubmit && !isDeleted}
                 resubmitLoading={resubmitLoading}
                 pendingActionType={pendingActionType}
                 onSignClick={() => setSignModalOpen(true)}
@@ -939,6 +1014,41 @@ export default function DocumentDetail({
               className="px-4 py-2 text-sm font-semibold text-white bg-violet-600 hover:bg-violet-700 rounded-lg disabled:opacity-50"
             >
               {revisionLoading ? 'Submitting...' : 'Confirm'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={deleteModalOpen}
+        onClose={() => !deleteLoading && setDeleteModalOpen(false)}
+        title="Delete Document"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600">
+            This will permanently remove the document files and stop the workflow.
+            Everyone with access will still see that you deleted it.
+          </p>
+          {deleteError && (
+            <p className="text-sm text-red-600">{deleteError}</p>
+          )}
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setDeleteModalOpen(false)}
+              disabled={deleteLoading}
+              className="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={deleteLoading}
+              className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-50"
+            >
+              {deleteLoading ? 'Deleting...' : 'Delete Document'}
             </button>
           </div>
         </div>
