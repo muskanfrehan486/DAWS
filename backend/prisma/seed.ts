@@ -14,32 +14,66 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+const DEPARTMENTS = [
+  "Administration",
+  "Beauty & Fragrance",
+  "Chairman",
+  "Corporate Sales",
+  "Customer Services",
+  "E-Com IT",
+  "E-Com Operations",
+  "Fabric Sourcing & Procurment",
+  "Facility Management",
+  "Finance",
+  "Folding / Packing",
+  "Footwear & Bags",
+  "Gents Fabric",
+  "Health & Safety",
+  "Home Textile",
+  "HR Shared Services & Regulatory Compliance",
+  "Human Resource",
+  "Human Resources",
+  "Information Technology",
+  "Internal Audit",
+  "Inventory",
+  "Ladies Fabric",
+  "Ladies Pret",
+  "Laundry",
+  "Marketing",
+  "Paid Marketing",
+  "Procurement",
+  "Product Sourcing & Procurement",
+  "Project Management",
+  "Retail Front Operation",
+  "Retail Planning & Analytics",
+  "Security",
+  "SEO",
+  "Stitching Unit - KSU",
+  "Studio",
+  "Supply Chain",
+  "Western Apparel",
+  "Wholesales Front Operation",
+] as const;
+
 async function main() {
   console.log("🚀 Running seed...");
 
-  // Ensure Human Resources department exists
-  const department = await prisma.department.upsert({
-    where: {
-      name: "Human Resources",
-    },
-    update: {},
-    create: {
-      name: "Human Resources",
-    },
+  for (const name of DEPARTMENTS) {
+    const department = await prisma.department.upsert({
+      where: { name },
+      update: {},
+      create: { name },
+    });
+    console.log("✅ Department:", department.name);
+  }
+
+  const department = await prisma.department.findFirst({
+    where: { name: "Human Resources" },
   });
 
-  const department2 = await prisma.department.upsert({
-    where: {
-      name: "Finance",
-    },
-    update: {},
-    create: {
-      name: "Finance",
-    },
-  });
-
-  console.log("✅ Department:", department.name);
-  console.log("✅ Department:", department2.name);
+  if (!department) {
+    throw new Error("Human Resources department not found after seed");
+  }
 
   // Look for existing auth user
   const { data: usersData, error: listError } =
@@ -59,7 +93,7 @@ async function main() {
 
     const { data, error } = await supabaseAdmin.auth.admin.createUser({
       email: "admin@example.com",
-      password: "StrongPassword123!",
+      password: "password",
       email_confirm: true,
     });
 

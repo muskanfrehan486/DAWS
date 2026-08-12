@@ -8,7 +8,7 @@ class AuthService {
     const { data, error } =
       await supabaseAdmin.auth.admin.createUser({
         email: "admin@example.com",
-        password: "StrongPassword123!",
+        password: "password",
         email_confirm: true,
       });
 

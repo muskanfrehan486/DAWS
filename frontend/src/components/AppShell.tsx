@@ -1,10 +1,10 @@
 import { type ReactNode, useState } from 'react';
 import {
-  LayoutDashboard, FileText, Clock, Upload, Bell, ClipboardList, LogOut, ChevronDown, Search, Menu, X, Settings,
+  LayoutDashboard, FileText, Clock, Upload, Bell, ClipboardList, LogOut, ChevronDown, Menu, X, Settings,
 } from 'lucide-react';
 import { useCurrentUser } from '../contexts/CurrentUserContext';
 import { useUnreadNotificationCount } from '../hooks/useNotifications';
-import { usePendingApprovals } from '../hooks/usePendingApprovals';
+import { usePendingApprovalCount } from '../hooks/usePendingApprovalCount';
 import type { Page } from '../App';
 
 interface AppShellProps {
@@ -26,14 +26,12 @@ const NAV_ITEMS: { id: Page; label: string; icon: typeof LayoutDashboard; divide
 ];
 
 export default function AppShell({ children, activePage, onNavigate, onLogout, showSidebar = true }: AppShellProps) {
-  const [searchValue, setSearchValue] = useState('');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const { user: currentUser } = useCurrentUser();
 
   const { unreadCount: notificationUnreadCount } = useUnreadNotificationCount();
-  const { documents: pendingDocuments } = usePendingApprovals();
-  const pendingCount = pendingDocuments.length;
+  const { count: pendingCount } = usePendingApprovalCount();
   const isAdmin = currentUser?.role === 'ADMINISTRATOR';
   const userInitials = currentUser
     ? `${currentUser.firstName?.[0] ?? ''}${currentUser.lastName?.[0] ?? ''}`.toUpperCase()

@@ -24,6 +24,17 @@ router.get(
 );
 
 router.get(
+  "/pending-count",
+  authenticate,
+  asyncHandler(async (req, res) => {
+    const result = await documentsService.getPendingApprovalCount(
+      req.supabaseUserId!
+    );
+    res.json(result);
+  })
+);
+
+router.get(
   "/:id/file",
   authenticate,
   asyncHandler(async (req, res) => {

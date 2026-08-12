@@ -1,9 +1,6 @@
 import { authHeaders } from './authApi'
-
-async function parseApiError(res: Response): Promise<string> {
-  const body = await res.json().catch(() => ({}))
-  return body?.message || body?.error || `Request failed (${res.status})`
-}
+import { parseApiError } from '../utils/apiError'
+import { invalidateDocumentsCache } from './documentsApi'
 
 export async function rejectDocument(documentId: string, comment?: string) {
   const res = await fetch(`/api/documents/${documentId}/reject`, {
@@ -16,6 +13,7 @@ export async function rejectDocument(documentId: string, comment?: string) {
     throw new Error(await parseApiError(res))
   }
 
+  invalidateDocumentsCache()
   return res.json()
 }
 
@@ -30,6 +28,7 @@ export async function requestRevision(documentId: string, comment: string) {
     throw new Error(await parseApiError(res))
   }
 
+  invalidateDocumentsCache()
   return res.json()
 }
 
@@ -56,5 +55,6 @@ export async function approveDocument(
     throw new Error(await parseApiError(res))
   }
 
+  invalidateDocumentsCache()
   return res.json()
 }

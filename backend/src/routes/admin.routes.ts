@@ -11,6 +11,15 @@ const router = Router();
 router.use(authenticate, requireAdmin);
 
 router.get(
+  "/departments",
+  requireAdmin,
+  asyncHandler(async (_req, res) => {
+    const departments = await adminService.listDepartments();
+    res.json(departments);
+  })
+);
+
+router.get(
   "/users",
   requireAdmin,
   asyncHandler(async (_req, res) => {
@@ -45,6 +54,18 @@ router.post(
   asyncHandler(async (req, res) => {
     const user = await adminService.createUser(req.body);
     res.status(201).json(user);
+  })
+);
+
+router.delete(
+  "/users/:id",
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const result = await adminService.deleteUser(
+      req.params.id as string,
+      req.supabaseUserId!
+    );
+    res.json(result);
   })
 );
 

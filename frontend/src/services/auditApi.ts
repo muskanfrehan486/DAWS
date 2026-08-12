@@ -1,10 +1,6 @@
 import type { AuditHistoryResponse } from '../types/audit'
 import { authHeaders } from './authApi'
-
-async function parseApiError(res: Response): Promise<string> {
-  const body = await res.json().catch(() => ({}))
-  return body?.message || body?.error || `Request failed (${res.status})`
-}
+import { parseApiError } from '../utils/apiError'
 
 export async function fetchAuditHistory(limit = 100): Promise<AuditHistoryResponse> {
   const params = new URLSearchParams({ limit: String(limit) })
