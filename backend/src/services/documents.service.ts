@@ -339,6 +339,51 @@ class DocumentsService {
     };
   }
 
+  async getPendingApprovalCount(userId: string) {
+    const documents = await prisma.document.findMany({
+      where: {
+        status: "PENDING_REVIEW",
+        preparerId: { not: userId },
+        currentWorkflowRun: {
+          status: "IN_PROGRESS",
+          chain: {
+            steps: {
+              some: {
+                assignedUserId: userId,
+              },
+            },
+          },
+        },
+      },
+      select: {
+        id: true,
+        currentWorkflowRun: {
+          select: {
+            currentStepOrder: true,
+            chain: {
+              select: {
+                steps: {
+                  where: { assignedUserId: userId },
+                  select: { stepOrder: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const count = documents.filter((document) => {
+      const run = document.currentWorkflowRun;
+      if (!run) return false;
+      return run.chain.steps.some(
+        (step) => step.stepOrder === run.currentStepOrder
+      );
+    }).length;
+
+    return { count };
+  }
+
   async getDocumentById(documentId: string, userId: string) {
     const document = await prisma.document.findUnique({
       where: { id: documentId },

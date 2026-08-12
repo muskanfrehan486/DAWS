@@ -1,4 +1,5 @@
 import type { UserRole } from '../types/user.ts'
+import { parseApiError } from '../utils/apiError'
 
 const TOKEN_STORAGE_KEY = 'docflow_auth_token'
 
@@ -58,8 +59,7 @@ export async function login(email: string, password: string) {
   })
 
   if (!res.ok) {
-    const data = await res.json().catch(() => ({}))
-    throw new Error(data?.message || data?.error || 'Login failed')
+    throw new Error(await parseApiError(res))
   }
 
   const payload = await res.json()
@@ -82,7 +82,7 @@ export async function getMe() {
     headers: { ...authHeaders() },
   })
   if (!res.ok) {
-    throw new Error('Failed to load current user')
+    throw new Error(await parseApiError(res))
   }
 
   const data = await res.json()

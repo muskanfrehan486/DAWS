@@ -1,10 +1,7 @@
 import type { NotificationsListResponse } from '../types/notification'
 import { authHeaders } from './authApi'
-
-async function parseApiError(res: Response): Promise<string> {
-  const body = await res.json().catch(() => ({}))
-  return body?.message || body?.error || `Request failed (${res.status})`
-}
+import { parseApiError } from '../utils/apiError'
+import { createCachedRequest } from '../utils/requestCache'
 
 export async function fetchNotifications(
   isRead?: boolean,
@@ -28,6 +25,22 @@ export async function fetchNotifications(
   return res.json() as Promise<NotificationsListResponse>
 }
 
+async function fetchUnreadNotifications(): Promise<NotificationsListResponse> {
+  return fetchNotifications(false)
+}
+
+const unreadNotificationsCache = createCachedRequest(fetchUnreadNotifications, 4000)
+
+export function fetchUnreadNotificationsCached(
+  force = false,
+): Promise<NotificationsListResponse> {
+  return unreadNotificationsCache.get(force)
+}
+
+export function invalidateUnreadNotificationsCache(): void {
+  unreadNotificationsCache.invalidate()
+}
+
 export async function markNotificationAsRead(notificationId: string) {
   const res = await fetch(`/api/notifications/${notificationId}/read`, {
     method: 'PATCH',
@@ -38,6 +51,7 @@ export async function markNotificationAsRead(notificationId: string) {
     throw new Error(await parseApiError(res))
   }
 
+  invalidateUnreadNotificationsCache()
   return res.json()
 }
 

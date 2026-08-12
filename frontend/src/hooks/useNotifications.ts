@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   fetchNotifications,
+  fetchUnreadNotificationsCached,
+  invalidateUnreadNotificationsCache,
   markAllNotificationsAsRead,
   markNotificationAsRead,
 } from '../services/notificationsApi'
@@ -102,9 +104,9 @@ export function useNotifications() {
 export function useUnreadNotificationCount() {
   const [count, setCount] = useState(0)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (force = false) => {
     try {
-      const { notifications } = await fetchNotifications(false)
+      const { notifications } = await fetchUnreadNotificationsCached(force)
       setCount(notifications.length)
     } catch {
       setCount(0)
@@ -115,5 +117,10 @@ export function useUnreadNotificationCount() {
     load()
   }, [load])
 
-  return { unreadCount: count, refetch: load }
+  const refetch = useCallback(() => {
+    invalidateUnreadNotificationsCache()
+    return load(true)
+  }, [load])
+
+  return { unreadCount: count, refetch }
 }

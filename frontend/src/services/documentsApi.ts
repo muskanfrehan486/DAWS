@@ -1,12 +1,8 @@
 import type { DocumentsListResponse } from '../types/document'
 import type { CreateDocumentInput } from '../types/submitDocument'
 import { authHeaders } from './authApi'
+import { parseApiError } from '../utils/apiError'
 import { createCachedRequest } from '../utils/requestCache'
-
-async function parseApiError(res: Response): Promise<string> {
-  const body = await res.json().catch(() => ({}))
-  return body?.message || body?.error || `Request failed (${res.status})`
-}
 
 export async function fetchDocuments(): Promise<DocumentsListResponse> {
   const res = await fetch('/api/documents', {
@@ -20,11 +16,24 @@ export async function fetchDocuments(): Promise<DocumentsListResponse> {
   return res.json() as Promise<DocumentsListResponse>
 }
 
+export async function fetchPendingApprovalCount(): Promise<{ count: number }> {
+  const res = await fetch('/api/documents/pending-count', {
+    headers: { ...authHeaders() },
+  })
+
+  if (!res.ok) {
+    throw new Error(await parseApiError(res))
+  }
+
+  return res.json() as Promise<{ count: number }>
+}
+
 // Dashboard, My Documents, Pending Approvals and the app shell's badge counts
 // all read the same document list on a typical page load. Cache briefly and
 // dedupe concurrent requests so that navigation triggers one network call
 // instead of several.
 const documentsCache = createCachedRequest(fetchDocuments, 4000)
+const pendingCountCache = createCachedRequest(fetchPendingApprovalCount, 4000)
 
 export function fetchDocumentsCached(force = false): Promise<DocumentsListResponse> {
   return documentsCache.get(force)
@@ -32,6 +41,11 @@ export function fetchDocumentsCached(force = false): Promise<DocumentsListRespon
 
 export function invalidateDocumentsCache(): void {
   documentsCache.invalidate()
+  pendingCountCache.invalidate()
+}
+
+export function fetchPendingApprovalCountCached(force = false): Promise<{ count: number }> {
+  return pendingCountCache.get(force)
 }
 
 export async function createDocument(input: CreateDocumentInput) {
@@ -55,5 +69,7 @@ export async function createDocument(input: CreateDocumentInput) {
     throw new Error(await parseApiError(res))
   }
 
+  invalidateDocumentsCache()
   return res.json()
 }
+

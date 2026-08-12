@@ -5,11 +5,7 @@ import type {
   ApiWorkflowResponse,
 } from '../types/documentDetail.ts'
 import { authHeaders } from './authApi'
-
-async function parseApiError(res: Response): Promise<string> {
-  const body = await res.json().catch(() => ({}))
-  return body?.message || body?.error || `Request failed (${res.status})`
-}
+import { parseApiError } from '../utils/apiError'
 
 export async function fetchDocumentById(
   documentId: string,

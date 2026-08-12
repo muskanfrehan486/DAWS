@@ -1,28 +1,22 @@
 import { useState, useEffect } from 'react';
-import { Users, Plus, Search, Edit2 } from 'lucide-react';
+import { Users, Plus, Search, Edit2, Trash2 } from 'lucide-react';
 import Modal from '../components/Modal.tsx';
 import { loadUsers } from '../data/sampleData';
-import { createUser, updateUser } from '../services/AdminApi.ts';
+import { createUser, deleteUser, fetchDepartments, updateUser } from '../services/AdminApi.ts';
+import type { Department } from '../services/AdminApi.ts';
 
 type AdminTab = 'users';
-
-const departments = [
-    {
-        "id": "3b824989-8cd8-4f2d-bd7f-693c5358c752",
-        "name": "Human Resources"
-    },
-    {
-        "id": "23be27d6-8a45-4822-ba84-19f3bcc64432",
-        "name": "Finance"
-    }
-];
 
 export default function Administration() {
     const [activeTab, setActiveTab] = useState<AdminTab>('users');
     const [search, setSearch] = useState('');
     const [users, setUsers] = useState<any[]>([]);
+    const [departments, setDepartments] = useState<Department[]>([]);
     const [addUserModal, setAddUserModal] = useState(false);
     const [editingUser, setEditingUser] = useState<any | null>(null);
+    const [deletingUser, setDeletingUser] = useState<any | null>(null);
+    const [deleteError, setDeleteError] = useState('');
+    const [deleteLoading, setDeleteLoading] = useState(false);
     const [searchInput, setSearchInput] = useState("");
 
     useEffect(() => {
@@ -31,6 +25,12 @@ export default function Administration() {
             .catch(error => {
                 console.error('Failed to load users', error);
             });
+
+        fetchDepartments()
+            .then(setDepartments)
+            .catch(error => {
+                console.error('Failed to load departments', error);
+            });
     }, []);
 
     const [form, setForm] = useState({
@@ -38,7 +38,7 @@ export default function Administration() {
         lastName: "",
         email: "",
         password: "",
-        departmentId: departments[0].id,
+        departmentId: "",
         role: "USER",
     });
 
@@ -56,7 +56,7 @@ export default function Administration() {
             lastName: "",
             email: "",
             password: "",
-            departmentId:departments[0].id,
+            departmentId: departments[0]?.id ?? "",
             role: "USER",
         });
         setAddUserModal(true);
@@ -101,6 +101,29 @@ export default function Administration() {
         setUsers(updatedUsers);
         setAddUserModal(false);
         setEditingUser(null);
+    };
+
+    const handleDeleteUser = (user: any) => {
+        setDeleteError('');
+        setDeletingUser(user);
+    };
+
+    const confirmDeleteUser = async () => {
+        if (!deletingUser) return;
+
+        setDeleteLoading(true);
+        setDeleteError('');
+
+        try {
+            await deleteUser(deletingUser.id);
+            const updatedUsers = await loadUsers();
+            setUsers(updatedUsers);
+            setDeletingUser(null);
+        } catch (err) {
+            setDeleteError(err instanceof Error ? err.message : 'Failed to delete user');
+        } finally {
+            setDeleteLoading(false);
+        }
     };
     useEffect(() => {
         console.log("search state:", search);
@@ -167,7 +190,7 @@ export default function Administration() {
                             <table className="w-full text-sm">
                                 <thead>
                                     <tr className="border-b border-slate-100 bg-slate-50/50">
-                                        {['User', 'Email', 'Department', 'Role'].map(col => (
+                                        {['User', 'Email', 'Department', 'Role', 'Actions'].map(col => (
                                             <th key={col} className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3 whitespace-nowrap">
                                                 {col}
                                             </th>
@@ -198,6 +221,9 @@ export default function Administration() {
                                                 <div className="flex items-center gap-1">
                                                     <button type="button" onClick={() => handleEditUser(user)} className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-blue-600 transition-colors" title="Edit">
                                                         <Edit2 size={12} />
+                                                    </button>
+                                                    <button type="button" onClick={() => handleDeleteUser(user)} className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors" title="Delete">
+                                                        <Trash2 size={12} />
                                                     </button>
                                                 </div>
                                             </td>
@@ -297,6 +323,48 @@ export default function Administration() {
                             {editingUser ? "Update User" : "Create User"}
                         </button>
                         <button type="button" onClick={() => setAddUserModal(false)} className="flex-1 py-2.5 rounded-lg text-sm font-medium text-slate-600 border border-slate-300 hover:bg-slate-50">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
+            <Modal
+                open={!!deletingUser}
+                onClose={() => !deleteLoading && setDeletingUser(null)}
+                title="Delete User"
+                size="sm"
+            >
+                <div className="space-y-4">
+                    <p className="text-sm text-slate-600">
+                        Are you sure you want to delete{' '}
+                        <span className="font-semibold text-slate-900">
+                            {deletingUser?.firstName} {deletingUser?.lastName}
+                        </span>
+                        ? This action cannot be undone.
+                    </p>
+
+                    {deleteError && (
+                        <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                            {deleteError}
+                        </div>
+                    )}
+
+                    <div className="flex gap-3 pt-1">
+                        <button
+                            type="button"
+                            onClick={confirmDeleteUser}
+                            disabled={deleteLoading}
+                            className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-60"
+                        >
+                            {deleteLoading ? 'Deleting...' : 'Delete User'}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setDeletingUser(null)}
+                            disabled={deleteLoading}
+                            className="flex-1 py-2.5 rounded-lg text-sm font-medium text-slate-600 border border-slate-300 hover:bg-slate-50 disabled:opacity-60"
+                        >
                             Cancel
                         </button>
                     </div>

@@ -1,7 +1,7 @@
 import { prisma } from "../prisma";
 import { errors } from "../lib/errors";
 import { supabaseAdmin } from "../lib/supabase";
-import type { UpdateAdminUserInput, CreateAdminUserInput  } from "../schemas/admin.schema";
+import type { UpdateAdminUserInput, CreateAdminUserInput } from "../schemas/admin.schema";
 
 class AdminService {
   async listUsers() {
@@ -27,62 +27,69 @@ class AdminService {
     });
   }
 
-
-async createUser(input: CreateAdminUserInput) {
-  const department = await prisma.department.findUnique({
-    where: {
-      id: input.departmentId,
-    },
-  });
-
-  if (!department) {
-    throw errors.badRequest("Department not found");
+  async listDepartments() {
+    return prisma.department.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    });
   }
 
-  const { data, error } = await supabaseAdmin.auth.admin.createUser({
-    email: input.email,
-    password: input.password,
-    email_confirm: true,
-  });
-
-  if (error) {
-    throw errors.badRequest(error.message);
-  }
-
-  const authUser = data.user;
-
-  if (!authUser) {
-    throw errors.internal("Failed to create authentication user");
-  }
-
-  const user = await prisma.user.create({
-    data: {
-      id: authUser.id,
-      email: input.email,
-      firstName: input.firstName,
-      lastName: input.lastName,
-      departmentId: input.departmentId,
-      loginRole: input.loginRole,
-    },
-    select: {
-      id: true,
-      email: true,
-      firstName: true,
-      lastName: true,
-      loginRole: true,
-      department: {
-        select: {
-          id: true,
-          name: true,
-        },
+  async createUser(input: CreateAdminUserInput) {
+    const department = await prisma.department.findUnique({
+      where: {
+        id: input.departmentId,
       },
-      createdAt: true,
-      updatedAt: true,
-    },
-  });
+    });
 
-  return user;
-}
+    if (!department) {
+      throw errors.badRequest("Department not found");
+    }
+
+    const { data, error } = await supabaseAdmin.auth.admin.createUser({
+      email: input.email,
+      password: input.password,
+      email_confirm: true,
+    });
+
+    if (error) {
+      throw errors.badRequest(error.message);
+    }
+
+    const authUser = data.user;
+
+    if (!authUser) {
+      throw errors.internal("Failed to create authentication user");
+    }
+
+    const user = await prisma.user.create({
+      data: {
+        id: authUser.id,
+        email: input.email,
+        firstName: input.firstName,
+        lastName: input.lastName,
+        departmentId: input.departmentId,
+        loginRole: input.loginRole,
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        loginRole: true,
+        department: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    return user;
+  }
 
   async getUser(userId: string) {
     const user = await prisma.user.findUnique({
@@ -136,7 +143,10 @@ async createUser(input: CreateAdminUserInput) {
     if (input.password) authUpdates.password = input.password;
 
     if (Object.keys(authUpdates).length > 0) {
-      const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, authUpdates);
+      const { error } = await supabaseAdmin.auth.admin.updateUserById(
+        userId,
+        authUpdates
+      );
 
       if (error) {
         throw errors.badRequest(error.message);
@@ -170,6 +180,78 @@ async createUser(input: CreateAdminUserInput) {
     });
 
     return updatedUser;
+  }
+
+  async deleteUser(userId: string, actorId: string) {
+    if (userId === actorId) {
+      throw errors.badRequest("You cannot delete your own account");
+    }
+
+    const existing = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        loginRole: true,
+        _count: {
+          select: {
+            preparedDocuments: true,
+            uploadedVersions: true,
+            assignedChainSteps: true,
+            approvalActions: true,
+            documentComments: true,
+          },
+        },
+      },
+    });
+
+    if (!existing) {
+      throw errors.notFound("User not found");
+    }
+
+    if (existing.loginRole === "ADMINISTRATOR") {
+      const adminCount = await prisma.user.count({
+        where: { loginRole: "ADMINISTRATOR" },
+      });
+
+      if (adminCount <= 1) {
+        throw errors.badRequest("Cannot delete the last administrator");
+      }
+    }
+
+    const {
+      preparedDocuments,
+      uploadedVersions,
+      assignedChainSteps,
+      approvalActions,
+      documentComments,
+    } = existing._count;
+
+    if (
+      preparedDocuments > 0 ||
+      uploadedVersions > 0 ||
+      assignedChainSteps > 0 ||
+      approvalActions > 0 ||
+      documentComments > 0
+    ) {
+      throw errors.conflict(
+        "Cannot delete this user because they have existing documents, approvals, or comments in the system."
+      );
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.notification.deleteMany({ where: { recipientId: userId } });
+      await tx.user.delete({ where: { id: userId } });
+    });
+
+    const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
+
+    if (error) {
+      throw errors.internal(
+        `User removed from application but failed to delete auth account: ${error.message}`
+      );
+    }
+
+    return { message: "User deleted successfully" };
   }
 }
 
