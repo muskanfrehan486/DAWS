@@ -8,6 +8,7 @@ A PostgreSQL-based document approval workflow system with multi-stage review and
 - Document versioning and revision tracking
 - Digital signature support
 - Real-time notifications
+- Email notifications (modular provider architecture)
 - Comprehensive audit logging
 - Department-based user management
 - Role-based access control (Administrator/User)
@@ -54,6 +55,43 @@ DIRECT_URL="postgresql://USER:PASSWORD@HOST:PORT/DATABASE"
 - Replace `[YOUR-PASSWORD]` with your actual database password
 
 **Note:** The `DIRECT_URL` is only used during migrations and is configured in `prisma.config.ts`.
+
+See [`.env.example`](.env.example) for the full list of supported variables, including email configuration.
+
+#### Email (optional)
+
+Email is disabled by default. To send notification emails with Gmail:
+
+1. Enable 2-Step Verification on your Google account
+2. Create an App Password: Google Account → Security → App passwords
+3. Add these variables to `.env`:
+
+```env
+EMAIL_ENABLED=true
+EMAIL_PROVIDER=smtp
+EMAIL_FROM="DocFlow <you@gmail.com>"
+FRONTEND_URL=http://localhost:5173
+
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=you@gmail.com
+SMTP_PASS=your-16-character-app-password
+```
+
+Emails are sent for all in-app notification types: approval needed, approved, rejected, revision requested, and document deleted. Failed emails are logged but never block workflow actions.
+
+#### Swapping email providers later
+
+All email logic lives in `src/email/`. Application code only calls `notificationDispatcher` — never a specific provider directly.
+
+| Provider | Env change | Code change |
+|----------|------------|-------------|
+| Company SMTP | Update `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM` | None |
+| Resend | `EMAIL_PROVIDER=resend`, add `RESEND_API_KEY` | Add `src/email/providers/resend.provider.ts` |
+| Microsoft 365 | `EMAIL_PROVIDER=microsoft`, add Azure app creds | Add `src/email/providers/microsoft-graph.provider.ts` |
+
+Set `EMAIL_ENABLED=false` or `EMAIL_PROVIDER=noop` for local development without sending mail.
 
 ### 4. Generate Prisma Client
 
@@ -109,6 +147,9 @@ backend/
 │   ├── schema.prisma          # Database schema definition
 │   └── migrations/            # Migration history (generated)
 ├── src/
+│   ├── email/                 # Modular email module (providers + templates)
+│   ├── services/
+│   │   └── notification-dispatcher.service.ts
 ├── lib/
 │   ├── env.ts              # Environment config with validation
 │   ├── errors.ts           # Error handling utilities
@@ -191,8 +232,7 @@ This system uses **Supabase Auth** for authentication. User IDs in the applicati
 2. Add authentication middleware (Supabase Auth integration)
 3. Create document upload/download handlers
 4. Implement workflow state machine logic
-5. Add email notification service
-6. Build frontend interface
+5. Build frontend interface
 
 ## Troubleshooting
 

@@ -3,7 +3,8 @@ import { prisma } from "../prisma";
 import { errors } from "../lib/errors";
 import { storageService } from "../lib/supabase.storage";
 import { auditService } from "./audit.service";
-import { notificationsService } from "./notifications.service";
+import { notificationDispatcher } from "./notification-dispatcher.service";
+import type { DispatchNotificationInput } from "./notification-dispatcher.service";
 import {
   ApproveDocumentInput,
   RejectDocumentInput,
@@ -166,6 +167,22 @@ class ApprovalService {
     return Buffer.from(signedPdfBytes);
   }
 
+  private buildUplineRecipientIds(
+    preparerId: string,
+    steps: ApprovalChainStep[],
+    currentStepOrder: number,
+  ) {
+    const recipientIds = new Set<string>([preparerId]);
+
+    for (const step of steps) {
+      if (step.stepOrder <= currentStepOrder) {
+        recipientIds.add(step.assignedUserId);
+      }
+    }
+
+    return recipientIds;
+  }
+
   private buildActionResponse(
     message: string,
     documentStatus: string,
@@ -215,6 +232,59 @@ class ApprovalService {
       (step) => step.stepOrder === run.currentStepOrder + 1
     );
 
+    const actor = await prisma.user.findUnique({
+      where: { id: actorId },
+      select: { firstName: true, lastName: true },
+    });
+    const actorName = actor
+      ? `${actor.firstName} ${actor.lastName}`.trim()
+      : undefined;
+
+    const uplineRecipientIds = this.buildUplineRecipientIds(
+      document.preparerId,
+      steps,
+      run.currentStepOrder,
+    );
+    uplineRecipientIds.delete(actorId);
+
+    const notificationJobs: DispatchNotificationInput[] = [];
+
+    const progressMessage = isFinalStep
+      ? `Document "${document.title}" has been fully approved.`
+      : `"${document.title}" was approved by ${actorName ?? "an approver"}. The document is advancing to the next step.`;
+
+    for (const recipientId of uplineRecipientIds) {
+      notificationJobs.push({
+        recipientId,
+        type: "APPROVED",
+        title: isFinalStep ? "Document Approved" : "Approval Progress",
+        message: progressMessage,
+        documentId,
+        documentTitle: document.title,
+        workflowRunId: run.id,
+        metadata: {
+          actorName,
+          isFinalApproval: isFinalStep,
+        },
+      });
+    }
+
+    if (!isFinalStep && nextStep) {
+      notificationJobs.push({
+        recipientId: nextStep.assignedUserId,
+        type: "APPROVAL_NEEDED",
+        title: "Approval Needed",
+        message: `Document "${document.title}" requires your review and approval.`,
+        documentId,
+        documentTitle: document.title,
+        workflowRunId: run.id,
+        metadata: {
+          actorName,
+          workflowStep: "Approval",
+        },
+      });
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       const action = await tx.approvalAction.create({
         data: {
@@ -251,16 +321,6 @@ class ApprovalService {
           },
         });
 
-        await notificationsService.createNotification({
-          recipientId: document.preparerId,
-          type: "APPROVED",
-          title: "Document Approved",
-          message: `Your document "${document.title}" has been fully approved.`,
-          documentId,
-          workflowRunId: run.id,
-          tx,
-        });
-
         await auditService.createAuditLog({
           actorId,
           action: "WORKFLOW_COMPLETED",
@@ -279,18 +339,6 @@ class ApprovalService {
           },
         });
 
-        if (nextStep) {
-          await notificationsService.createNotification({
-            recipientId: nextStep.assignedUserId,
-            type: "APPROVAL_NEEDED",
-            title: "Approval Needed",
-            message: `Document "${document.title}" requires your review and approval.`,
-            documentId,
-            workflowRunId: run.id,
-            tx,
-          });
-        }
-
         await auditService.createAuditLog({
           actorId,
           action: "WORKFLOW_APPROVED",
@@ -307,6 +355,8 @@ class ApprovalService {
 
       return action;
     });
+
+    await notificationDispatcher.dispatchMany(notificationJobs);
 
     return this.buildActionResponse(
       isFinalStep
@@ -332,12 +382,21 @@ class ApprovalService {
     const { document, run, currentStep, version, steps } =
       await this.loadAndValidateCurrentStep(documentId, actorId);
 
-    const uplineRecipientIds = new Set<string>([document.preparerId]);
-    for (const step of steps) {
-      if (step.stepOrder <= run.currentStepOrder) {
-        uplineRecipientIds.add(step.assignedUserId);
-      }
-    }
+    const uplineRecipientIds = this.buildUplineRecipientIds(
+      document.preparerId,
+      steps,
+      run.currentStepOrder,
+    );
+
+    const actor = await prisma.user.findUnique({
+      where: { id: actorId },
+      select: { firstName: true, lastName: true },
+    });
+    const actorName = actor
+      ? `${actor.firstName} ${actor.lastName}`.trim()
+      : undefined;
+
+    const notificationJobs: DispatchNotificationInput[] = [];
 
     const result = await prisma.$transaction(async (tx) => {
       const action = await tx.approvalAction.create({
@@ -379,14 +438,18 @@ class ApprovalService {
       }
 
       for (const recipientId of uplineRecipientIds) {
-        await notificationsService.createNotification({
+        notificationJobs.push({
           recipientId,
           type: "REJECTED",
           title: "Document Rejected",
           message: `Document "${document.title}" has been rejected.`,
           documentId,
+          documentTitle: document.title,
           workflowRunId: run.id,
-          tx,
+          metadata: {
+            actorName,
+            comments: input.comment?.trim() || undefined,
+          },
         });
       }
 
@@ -403,6 +466,8 @@ class ApprovalService {
 
       return action;
     });
+
+    await notificationDispatcher.dispatchMany(notificationJobs);
 
     return this.buildActionResponse(
       "Document rejected. Workflow has ended.",
@@ -425,6 +490,16 @@ class ApprovalService {
   ) {
     const { document, run, currentStep, version } =
       await this.loadAndValidateCurrentStep(documentId, actorId);
+
+    const actor = await prisma.user.findUnique({
+      where: { id: actorId },
+      select: { firstName: true, lastName: true },
+    });
+    const actorName = actor
+      ? `${actor.firstName} ${actor.lastName}`.trim()
+      : undefined;
+
+    const notificationJobs: DispatchNotificationInput[] = [];
 
     const result = await prisma.$transaction(async (tx) => {
       const action = await tx.approvalAction.create({
@@ -463,14 +538,18 @@ class ApprovalService {
         `Revision requested: ${input.comment.trim()}`,
       );
 
-      await notificationsService.createNotification({
+      notificationJobs.push({
         recipientId: document.preparerId,
         type: "REVISION_REQUESTED",
         title: "Revision Requested",
         message: `Revision requested for "${document.title}": ${input.comment}`,
         documentId,
+        documentTitle: document.title,
         workflowRunId: run.id,
-        tx,
+        metadata: {
+          actorName,
+          comments: input.comment.trim(),
+        },
       });
 
       await auditService.createAuditLog({
@@ -486,6 +565,8 @@ class ApprovalService {
 
       return action;
     });
+
+    await notificationDispatcher.dispatchMany(notificationJobs);
 
     return this.buildActionResponse(
       "Revision requested. The preparer has been notified.",
