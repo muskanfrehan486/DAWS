@@ -32,7 +32,7 @@ export const EMAIL_TEMPLATES = [
         <p className="mb-3">
           You have been assigned to review the following document.
         </p>
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3 text-xs">
+        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 mb-3 text-xs">
           <p><strong>Document:</strong> {"{{document_title}}"}</p>
           <p><strong>Submitted by:</strong> {"{{submitter_name}}"}</p>
           <p><strong>Due by:</strong> {"{{due_date}}"}</p>

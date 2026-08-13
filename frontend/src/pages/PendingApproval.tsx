@@ -44,7 +44,7 @@ function WorkflowProgress({
         Step {currentStep} of {totalSteps} in workflow
       </span>
       <div className="hidden sm:block w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-        <div className="h-full bg-blue-500 rounded-full" style={{ width: `${progress}%` }} />
+        <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${progress}%` }} />
       </div>
     </div>
   );
@@ -68,7 +68,7 @@ function PendingDocumentCard({
   const waitingDuration = formatWaitingDuration(document.updatedAt);
 
   return (
-    <article className="bg-white rounded-xl border border-blue-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
+    <article className="bg-white rounded-xl border border-emerald-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
       <div className="p-4 sm:p-5">
         <div className="flex items-start gap-3">
           <FileIcon />
@@ -82,7 +82,7 @@ function PendingDocumentCard({
             </p>
           </div>
 
-          <span className="flex-shrink-0 inline-flex items-center px-2.5 py-1 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-600 text-[10px] sm:text-xs font-medium whitespace-nowrap">
+          <span className="flex-shrink-0 inline-flex items-center px-2.5 py-1 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 text-[10px] sm:text-xs font-medium whitespace-nowrap">
             <span className="hidden sm:inline">{document.actionLabel}</span>
             <span className="sm:hidden">
               {document.actionLabel === 'Approval Required' ? 'Approve' : 'Review'}
@@ -225,7 +225,7 @@ export default function PendingApprovals({
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
-        <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+        <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
       </div>
     );
   }
@@ -237,7 +237,7 @@ export default function PendingApprovals({
         <button
           type="button"
           onClick={refetch}
-          className="text-sm font-medium text-blue-600 hover:text-blue-700"
+          className="text-sm font-medium text-emerald-600 hover:text-emerald-700"
         >
           Try again
         </button>
@@ -315,7 +315,7 @@ export default function PendingApprovals({
                 ? 'Rejection reason (optional)'
                 : 'Revision comments (required)'
             }
-            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 resize-none"
+            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 resize-none"
           />
 
           {actionError && (

@@ -39,7 +39,6 @@ type Tab = 'overview' | 'workflow' | 'comments' | 'audit'
 
 const returnPageLabels: Record<Page, string> = {
   dashboard: 'Dashboard',
-  'my-documents': 'My Documents',
   'pending-approvals': 'Pending Approvals',
   'submit-document': 'Submit Document',
   'document-details': 'Document',
@@ -56,7 +55,7 @@ function Avatar({
   color?: 'blue' | 'green' | 'gray'
 }) {
   const colors = {
-    blue: 'bg-blue-100 text-blue-600',
+    blue: 'bg-emerald-100 text-emerald-600',
     green: 'bg-emerald-100 text-emerald-600',
     gray: 'bg-slate-100 text-slate-500',
   }
@@ -94,7 +93,7 @@ function WorkflowStatusPanel({
       <div className="mb-5">
         <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
           <div
-            className="h-full bg-blue-500 rounded-full transition-all"
+            className="h-full bg-emerald-500 rounded-full transition-all"
             style={{ width: `${progress}%` }}
           />
         </div>
@@ -121,7 +120,7 @@ function WorkflowStatusPanel({
                   </div>
                 )}
                 {step.status === 'current' && (
-                  <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center">
                     <Clock3 size={16} className="text-white" />
                   </div>
                 )}
@@ -137,7 +136,7 @@ function WorkflowStatusPanel({
                       Step {step.step} · {step.type}
                     </span>
                     {step.status === 'current' && (
-                      <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 text-[10px] font-medium">
+                      <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 text-[10px] font-medium">
                         Current
                       </span>
                     )}
@@ -376,7 +375,7 @@ function DocumentPreview({
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={resubmitLoading}
-                className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-blue-600 text-white text-xs sm:text-sm font-medium hover:bg-blue-700 disabled:opacity-60"
+                className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-emerald-600 text-white text-xs sm:text-sm font-medium hover:bg-emerald-700 disabled:opacity-60"
               >
                 {resubmitLoading ? (
                   <Loader2 size={15} className="animate-spin" />
@@ -403,7 +402,7 @@ function DocumentPreview({
       <div className="p-4 bg-slate-50">
         {loading ? (
           <div className="flex items-center justify-center min-h-[280px] gap-2 text-sm text-slate-500">
-            <Loader2 size={18} className="animate-spin text-blue-600" />
+            <Loader2 size={18} className="animate-spin text-emerald-600" />
             Loading preview...
           </div>
         ) : error ? (
@@ -480,7 +479,7 @@ function CommentsTab({
           onChange={e => setNewComment(e.target.value)}
           rows={3}
           placeholder="Write a comment..."
-          className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 placeholder:text-slate-400 resize-none outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+          className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 placeholder:text-slate-400 resize-none outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
         />
         {error && (
           <p className="mt-2 text-xs text-red-600">{error}</p>
@@ -490,7 +489,7 @@ function CommentsTab({
             type="button"
             disabled={!newComment.trim() || commentLoading}
             onClick={handleSubmit}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {commentLoading && <Loader2 size={14} className="animate-spin" />}
             Add Comment
@@ -565,7 +564,7 @@ function AuditHistoryTab({
                     <td className="px-4 py-3 text-xs text-slate-700">{record.user}</td>
                     <td className="px-4 py-3 text-xs text-slate-500">{record.role}</td>
                     <td className="px-4 py-3">
-                      <span className="inline-flex px-2 py-1 rounded bg-blue-50 text-blue-600 text-[10px] font-medium">
+                      <span className="inline-flex px-2 py-1 rounded bg-emerald-50 text-emerald-600 text-[10px] font-medium">
                         {record.action}
                       </span>
                     </td>
@@ -584,7 +583,7 @@ function AuditHistoryTab({
                   <span className="text-[10px] text-slate-400">{record.date}</span>
                 </div>
                 <p className="mt-1 text-xs text-slate-500">{record.role}</p>
-                <span className="inline-flex mt-2 px-2 py-1 rounded bg-blue-50 text-blue-600 text-[10px] font-medium">
+                <span className="inline-flex mt-2 px-2 py-1 rounded bg-emerald-50 text-emerald-600 text-[10px] font-medium">
                   {record.action}
                 </span>
                 {record.comment !== '—' && (
@@ -724,7 +723,7 @@ export default function DocumentDetail({
   if (loading) {
     return (
       <main className="w-full max-w-[1400px] mx-auto px-3 sm:px-5 lg:px-6 py-16 flex flex-col items-center justify-center gap-3">
-        <Loader2 size={32} className="animate-spin text-blue-600" />
+        <Loader2 size={32} className="animate-spin text-emerald-600" />
         <p className="text-sm text-slate-500">Loading document...</p>
       </main>
     )
@@ -748,7 +747,7 @@ export default function DocumentDetail({
             <button
               type="button"
               onClick={refetch}
-              className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700"
+              className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700"
             >
               Retry
             </button>
@@ -768,12 +767,12 @@ export default function DocumentDetail({
         <button
           type="button"
           onClick={() => onNavigate('dashboard')}
-          className="text-slate-400 hover:text-blue-600"
+          className="text-slate-400 hover:text-emerald-600"
         >
           Dashboard
         </button>
         <span className="text-slate-300">/</span>
-        <button type="button" onClick={onBack} className="text-slate-400 hover:text-blue-600">
+        <button type="button" onClick={onBack} className="text-slate-400 hover:text-emerald-600">
           {returnPageLabels[returnPage]}
         </button>
         <span className="text-slate-300">/</span>
@@ -891,12 +890,12 @@ export default function DocumentDetail({
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
                 className={`relative flex-shrink-0 px-4 sm:px-5 py-3.5 text-xs sm:text-sm font-medium transition-colors ${
-                  active ? 'text-blue-600' : 'text-slate-500 hover:text-slate-700'
+                  active ? 'text-emerald-600' : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
                 {tab.label}
                 {active && (
-                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-600" />
                 )}
               </button>
             )
@@ -993,7 +992,7 @@ export default function DocumentDetail({
             onChange={e => setRevisionComment(e.target.value)}
             rows={4}
             placeholder="Revision comments (required)"
-            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 resize-none"
+            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 resize-none"
           />
           {revisionError && (
             <p className="text-sm text-red-600">{revisionError}</p>

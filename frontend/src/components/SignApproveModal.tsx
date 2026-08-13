@@ -1,10 +1,16 @@
 import { Loader2, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { approveDocument } from '../services/approvalApi'
 import { fetchDocumentFile } from '../services/documentDetailApi'
+import {
+  blobToDataUrl,
+  fetchMySignature,
+  uploadMySignature,
+} from '../services/userSignatureApi'
 import type { PdfPlacement } from '../utils/pdfCoordinates'
 import PdfDocumentViewer, { type PdfPageMetrics } from './PdfDocumentViewer'
-import SignaturePad from './SignaturePad'
+import SignatureInput, { type SignatureMode } from './SignatureInput'
+import { useCurrentUser } from '../contexts/CurrentUserContext'
 
 interface SignApproveModalProps {
   open: boolean
@@ -21,25 +27,51 @@ export default function SignApproveModal({
   onClose,
   onSuccess,
 }: SignApproveModalProps) {
+  const { user, refetch: refetchUser } = useCurrentUser()
   const [pdfFile, setPdfFile] = useState<Blob | null>(null)
   const [loadingPdf, setLoadingPdf] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [placement, setPlacement] = useState<PdfPlacement | null>(null)
   const [signatureImage, setSignatureImage] = useState<string | null>(null)
+  const [signatureMode, setSignatureMode] = useState<SignatureMode>('draw')
+  const [savedSignatureUrl, setSavedSignatureUrl] = useState<string | null>(null)
+  const [loadingSignature, setLoadingSignature] = useState(false)
+  const [uploadingSignature, setUploadingSignature] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+
+  const loadSavedSignature = useCallback(async () => {
+    setLoadingSignature(true)
+    try {
+      const blob = await fetchMySignature()
+      if (!blob) {
+        setSavedSignatureUrl(null)
+        return
+      }
+      setSavedSignatureUrl(await blobToDataUrl(blob))
+    } catch {
+      setSavedSignatureUrl(null)
+    } finally {
+      setLoadingSignature(false)
+    }
+  }, [])
 
   useEffect(() => {
     if (!open) {
       setPlacement(null)
       setSignatureImage(null)
+      setSignatureMode('draw')
+      setSavedSignatureUrl(null)
       setSubmitError(null)
+      setUploadError(null)
       return
     }
 
     let cancelled = false
     setLoadingPdf(true)
     setLoadError(null)
+    void loadSavedSignature()
 
     fetchDocumentFile(documentId)
       .then(blob => {
@@ -58,7 +90,14 @@ export default function SignApproveModal({
     return () => {
       cancelled = true
     }
-  }, [open, documentId])
+  }, [open, documentId, loadSavedSignature])
+
+  useEffect(() => {
+    if (!open) return
+    if (user?.hasSignature && savedSignatureUrl) {
+      setSignatureMode('saved')
+    }
+  }, [open, user?.hasSignature, savedSignatureUrl])
 
   if (!open) return null
 
@@ -67,13 +106,33 @@ export default function SignApproveModal({
     setSubmitError(null)
   }
 
+  const handleUploadSavedSignature = async (file: File) => {
+    setUploadingSignature(true)
+    setUploadError(null)
+    try {
+      await uploadMySignature(file)
+      await refetchUser()
+      await loadSavedSignature()
+      setSignatureMode('saved')
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Failed to upload signature')
+      throw err
+    } finally {
+      setUploadingSignature(false)
+    }
+  }
+
   const handleApprove = async () => {
     if (!placement) {
-      setSubmitError('Click on the document to choose where your signature should go.')
+      setSubmitError('Click or drag your signature onto the document to choose placement.')
       return
     }
     if (!signatureImage) {
-      setSubmitError('Draw your signature before approving.')
+      setSubmitError(
+        signatureMode === 'saved'
+          ? 'Upload or select your saved signature before approving.'
+          : 'Draw your signature before approving.',
+      )
       return
     }
 
@@ -97,6 +156,10 @@ export default function SignApproveModal({
       setSubmitting(false)
     }
   }
+
+  const placementHint = signatureMode === 'saved'
+    ? 'Drag your saved signature onto the document, or click to place it'
+    : 'Click on the document where you want to place your signature'
 
   return (
     <div
@@ -125,7 +188,7 @@ export default function SignApproveModal({
         <div className="flex-1 overflow-y-auto p-4 sm:p-6">
           {loadingPdf ? (
             <div className="flex items-center justify-center min-h-[320px] gap-2 text-sm text-slate-500">
-              <Loader2 size={18} className="animate-spin text-blue-600" />
+              <Loader2 size={18} className="animate-spin text-emerald-600" />
               Loading document...
             </div>
           ) : loadError ? (
@@ -138,19 +201,37 @@ export default function SignApproveModal({
                 placement={placement}
                 onPlacement={handlePlacement}
                 signaturePreviewUrl={signatureImage}
+                allowSignatureDrop={signatureMode === 'saved' && Boolean(savedSignatureUrl)}
+                placementHint={placementHint}
               />
 
               <div className="space-y-4">
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                   <p className="text-xs font-medium text-slate-700 mb-2">Instructions</p>
                   <ol className="text-xs text-slate-500 space-y-1.5 list-decimal list-inside">
-                    <li>Click on the PDF where you want to sign</li>
-                    <li>Draw your signature below</li>
+                    <li>Choose to draw or use your saved signature</li>
+                    <li>Click or drag your signature onto the PDF</li>
                     <li>Confirm to approve the document</li>
                   </ol>
                 </div>
 
-                <SignaturePad onChange={setSignatureImage} />
+                {loadingSignature ? (
+                  <div className="flex items-center gap-2 text-xs text-slate-500 py-4">
+                    <Loader2 size={14} className="animate-spin text-emerald-600" />
+                    Loading saved signature...
+                  </div>
+                ) : (
+                  <SignatureInput
+                    mode={signatureMode}
+                    onModeChange={setSignatureMode}
+                    onChange={setSignatureImage}
+                    savedSignatureUrl={savedSignatureUrl}
+                    hasSavedSignature={Boolean(savedSignatureUrl)}
+                    onUploadSavedSignature={handleUploadSavedSignature}
+                    uploading={uploadingSignature}
+                    uploadError={uploadError}
+                  />
+                )}
 
                 {placement && (
                   <div className="rounded-lg border border-slate-200 p-3 text-xs text-slate-500 space-y-1">

@@ -17,7 +17,6 @@ interface AppShellProps {
 
 const NAV_ITEMS: { id: Page; label: string; icon: typeof LayoutDashboard; dividerBefore?: boolean }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'my-documents', label: 'My Documents', icon: FileText },
   { id: 'pending-approvals', label: 'Pending Approvals', icon: Clock },
   { id: 'submit-document', label: 'Submit Document', icon: Upload },
   { id: 'notifications', label: 'Notifications', icon: Bell, dividerBefore: true },
@@ -43,7 +42,7 @@ export default function AppShell({ children, activePage, onNavigate, onLogout, s
       <div className="px-5 py-5 border-b border-white/10 flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-            style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #0f6cbd 100%)' }}>
+            style={{ background: 'linear-gradient(135deg, #22c55e 0%, #15803d 100%)' }}>
             <FileText size={16} className="text-white" />
           </div>
           <div>
@@ -72,7 +71,7 @@ export default function AppShell({ children, activePage, onNavigate, onLogout, s
                 <Icon size={16} />
                 <span className="flex-1">{item.label}</span>
                 {badge > 0 && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-500 text-white min-w-[18px] text-center leading-none">
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500 text-white min-w-[18px] text-center leading-none">
                     {badge}
                   </span>
                 )}
@@ -112,7 +111,7 @@ export default function AppShell({ children, activePage, onNavigate, onLogout, s
   );
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: '#f3f6fb' }}>
+    <div className="flex h-screen overflow-hidden" style={{ background: '#f0f7f2' }}>
       {/* Desktop sidebar — hidden below lg breakpoint */}
       {showSidebar && (
         <aside
@@ -174,7 +173,7 @@ export default function AppShell({ children, activePage, onNavigate, onLogout, s
             >
               <Bell size={17} />
               {notificationUnreadCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-blue-500 border-2 border-white" />
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-500 border-2 border-white" />
               )}
             </button>)}
             {/* User */}
@@ -186,7 +185,7 @@ export default function AppShell({ children, activePage, onNavigate, onLogout, s
               >
                 <div
                   className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
-                  style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #0f6cbd 100%)' }}
+                  style={{ background: 'linear-gradient(135deg, #22c55e 0%, #15803d 100%)' }}
                 >
                   {userInitials}
                 </div>

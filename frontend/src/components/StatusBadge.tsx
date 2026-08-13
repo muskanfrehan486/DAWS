@@ -7,7 +7,7 @@ const STATUS_CONFIG: Record<DocumentStatus, { label: string; className: string }
   },
   pending_review: {
     label: 'Pending Review',
-    className: 'bg-blue-50 text-blue-700 border border-blue-200',
+    className: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
   },
   pending_approval: {
     label: 'Pending Approval',
@@ -41,7 +41,7 @@ export default function StatusBadge({ status, size = 'sm' }: { status: DocumentS
         style={{
           backgroundColor:
             status === 'draft' ? '#6b7280' :
-            status === 'pending_review' ? '#0f6cbd' :
+            status === 'pending_review' ? '#15803d' :
             status === 'pending_approval' ? '#d97706' :
             status === 'revision_requested' ? '#7c3aed' :
             status === 'approved' ? '#059669' :

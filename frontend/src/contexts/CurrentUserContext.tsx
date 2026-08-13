@@ -15,6 +15,7 @@ export interface CurrentUser {
   firstName: string
   lastName: string
   role: UserRole
+  hasSignature: boolean
 }
 
 interface CurrentUserContextValue {

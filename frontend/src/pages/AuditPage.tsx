@@ -24,7 +24,7 @@ const actionStyles: Record<AuditActionLabel, string> = {
   Approved: 'bg-emerald-50 text-emerald-700',
   Rejected: 'bg-red-50 text-red-700',
   'Revision Requested': 'bg-violet-50 text-violet-700',
-  'Document Uploaded': 'bg-blue-50 text-blue-700',
+  'Document Uploaded': 'bg-emerald-50 text-emerald-700',
   'Document Resubmitted': 'bg-sky-50 text-sky-700',
   'Document Deleted': 'bg-slate-100 text-slate-600',
 };
@@ -398,7 +398,7 @@ export default function AuditTrail() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
-        <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+        <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
       </div>
     );
   }
@@ -410,7 +410,7 @@ export default function AuditTrail() {
         <button
           type="button"
           onClick={refetch}
-          className="text-sm font-medium text-blue-600 hover:text-blue-700"
+          className="text-sm font-medium text-emerald-600 hover:text-emerald-700"
         >
           Try again
         </button>
@@ -459,7 +459,7 @@ export default function AuditTrail() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search by document, user, or ID..."
-              className="w-full h-10 pl-9 pr-3 rounded-lg border border-slate-200 bg-slate-50/50 text-sm text-slate-700 placeholder:text-slate-400 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              className="w-full h-10 pl-9 pr-3 rounded-lg border border-slate-200 bg-slate-50/50 text-sm text-slate-700 placeholder:text-slate-400 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
             />
           </div>
 
@@ -467,7 +467,7 @@ export default function AuditTrail() {
             <select
               value={actionFilter}
               onChange={e => setActionFilter(e.target.value)}
-              className="appearance-none w-full h-10 px-3 pr-8 rounded-lg border border-slate-200 bg-white text-sm text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              className="appearance-none w-full h-10 px-3 pr-8 rounded-lg border border-slate-200 bg-white text-sm text-slate-700 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
             >
               {actionFilterOptions.map(action => (
                 <option key={action} value={action}>

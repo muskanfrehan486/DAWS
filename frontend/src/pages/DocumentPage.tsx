@@ -63,7 +63,7 @@ function WorkflowProgress({ doc }: { doc: DashboardDocument }) {
       ? '#10b981'
       : doc.status === 'rejected'
         ? '#ef4444'
-        : '#3b82f6';
+        : '#22c55e';
 
   return (
     <div className="min-w-[100px]">
@@ -109,9 +109,9 @@ function DocumentActions({
           rounded-lg
           text-xs
           font-medium
-          text-blue-600
-          hover:bg-blue-50
-          active:bg-blue-100
+          text-emerald-600
+          hover:bg-emerald-50
+          active:bg-emerald-100
           transition-colors
         "
       >
@@ -170,7 +170,7 @@ function MobileDocumentCard({
               text-slate-800
               text-left
               leading-snug
-              hover:text-blue-600
+              hover:text-emerald-600
               transition-colors
             "
           >
@@ -303,7 +303,7 @@ export default function MyDocuments({
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
-        <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+        <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
       </div>
     );
   }
@@ -315,7 +315,7 @@ export default function MyDocuments({
         <button
           type="button"
           onClick={refetch}
-          className="text-sm font-medium text-blue-600 hover:text-blue-700"
+          className="text-sm font-medium text-emerald-600 hover:text-emerald-700"
         >
           Try again
         </button>
@@ -348,7 +348,7 @@ export default function MyDocuments({
             font-bold
             text-slate-900
           ">
-            My Documents
+            Dashboard
           </h1>
 
           <p className="
@@ -360,24 +360,6 @@ export default function MyDocuments({
             Documents associated with you across the approval workflow.
           </p>
         </div>
-
-        <button
-          type="button"
-          onClick={() => onNavigate('dashboard')}
-          className="
-            self-start
-            text-xs
-            font-medium
-            text-blue-600
-            hover:text-blue-700
-            px-3 py-2
-            rounded-lg
-            hover:bg-blue-50
-            transition-colors
-          "
-        >
-          ← Dashboard
-        </button>
       </div>
 
       {/* Summary */}
@@ -399,8 +381,8 @@ export default function MyDocuments({
             transition-all
             ${
               statusFilter === 'all'
-                ? 'border-blue-400 ring-1 ring-blue-200'
-                : 'border-slate-200 hover:border-blue-300'
+                ? 'border-emerald-400 ring-1 ring-emerald-200'
+                : 'border-slate-200 hover:border-emerald-300'
             }
           `}
         >
@@ -430,8 +412,8 @@ export default function MyDocuments({
             transition-all
             ${
               statusFilter === 'pending'
-                ? 'border-blue-400 ring-1 ring-blue-200'
-                : 'border-slate-200 hover:border-blue-300'
+                ? 'border-emerald-400 ring-1 ring-emerald-200'
+                : 'border-slate-200 hover:border-emerald-300'
             }
           `}
         >
@@ -442,7 +424,7 @@ export default function MyDocuments({
           <p className="
             text-xl
             font-bold
-            text-blue-600
+            text-emerald-600
             mt-1
           ">
             {counts.pending}
@@ -589,9 +571,9 @@ export default function MyDocuments({
                   outline-none
                   text-slate-700
                   placeholder:text-slate-400
-                  focus:border-blue-400
+                  focus:border-emerald-400
                   focus:ring-2
-                  focus:ring-blue-100
+                  focus:ring-emerald-100
                 "
               />
 
@@ -650,9 +632,9 @@ export default function MyDocuments({
                   bg-white
                   text-slate-700
                   outline-none
-                  focus:border-blue-400
+                  focus:border-emerald-400
                   focus:ring-2
-                  focus:ring-blue-100
+                  focus:ring-emerald-100
                   appearance-none
                 "
               >
@@ -725,8 +707,8 @@ export default function MyDocuments({
                 className="
                   text-xs
                   font-medium
-                  text-blue-600
-                  hover:text-blue-700
+                  text-emerald-600
+                  hover:text-emerald-700
                 "
               >
                 Clear filters
@@ -784,8 +766,8 @@ export default function MyDocuments({
                   mt-4
                   text-xs
                   font-medium
-                  text-blue-600
-                  hover:text-blue-700
+                  text-emerald-600
+                  hover:text-emerald-700
                 "
               >
                 Submit Document →
@@ -798,8 +780,8 @@ export default function MyDocuments({
                   mt-4
                   text-xs
                   font-medium
-                  text-blue-600
-                  hover:text-blue-700
+                  text-emerald-600
+                  hover:text-emerald-700
                 "
               >
                 Clear filters
@@ -900,7 +882,7 @@ export default function MyDocuments({
                             className="
                               font-medium
                               text-slate-800
-                              hover:text-blue-600
+                              hover:text-emerald-600
                               text-left
                               truncate
                               block

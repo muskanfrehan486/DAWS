@@ -24,6 +24,8 @@ interface PdfDocumentViewerProps {
   placement?: PdfPlacement | null
   onPlacement?: (placement: PdfPlacement, metrics: PdfPageMetrics) => void
   signaturePreviewUrl?: string | null
+  allowSignatureDrop?: boolean
+  placementHint?: string
 }
 
 export default function PdfDocumentViewer({
@@ -32,6 +34,8 @@ export default function PdfDocumentViewer({
   placement = null,
   onPlacement,
   signaturePreviewUrl = null,
+  allowSignatureDrop = false,
+  placementHint,
 }: PdfDocumentViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -134,15 +138,18 @@ export default function PdfDocumentViewer({
     return () => window.removeEventListener('resize', handleResize)
   }, [renderPage])
 
-  const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
+  const placeSignatureAtPoint = (
+    clientX: number,
+    clientY: number,
+  ) => {
     if (!placementMode || !onPlacement || !metricsRef.current) return
 
     const canvas = canvasRef.current
     if (!canvas) return
 
     const rect = canvas.getBoundingClientRect()
-    const clickX = event.clientX - rect.left
-    const clickY = event.clientY - rect.top
+    const clickX = clientX - rect.left
+    const clickY = clientY - rect.top
     const { pdfWidth, pdfHeight, displayWidth, displayHeight } = metricsRef.current
 
     const pdfPlacement = clickToPdfPlacement(
@@ -165,6 +172,24 @@ export default function PdfDocumentViewer({
     ))
   }
 
+  const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    placeSignatureAtPoint(event.clientX, event.clientY)
+  }
+
+  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    if (!allowSignatureDrop) return
+    if (!event.dataTransfer.types.includes('application/x-docflow-signature')) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+  }
+
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    if (!allowSignatureDrop) return
+    if (!event.dataTransfer.getData('application/x-docflow-signature')) return
+    event.preventDefault()
+    placeSignatureAtPoint(event.clientX, event.clientY)
+  }
+
   if (!file) {
     return (
       <div className="flex items-center justify-center min-h-[320px] text-sm text-slate-500">
@@ -176,7 +201,7 @@ export default function PdfDocumentViewer({
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[320px] gap-2 text-sm text-slate-500">
-        <Loader2 size={18} className="animate-spin text-blue-600" />
+        <Loader2 size={18} className="animate-spin text-emerald-600" />
         Loading PDF...
       </div>
     )
@@ -219,12 +244,17 @@ export default function PdfDocumentViewer({
       )}
 
       {placementMode && (
-        <p className="mb-2 text-xs text-blue-600 font-medium">
-          Click on the document where you want to place your signature
+        <p className="mb-2 text-xs text-emerald-600 font-medium">
+          {placementHint ?? 'Click on the document where you want to place your signature'}
         </p>
       )}
 
-      <div ref={containerRef} className="relative w-full overflow-auto rounded-lg border border-slate-200 bg-slate-100">
+      <div
+        ref={containerRef}
+        className="relative w-full overflow-auto rounded-lg border border-slate-200 bg-slate-100"
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
         <div className="relative inline-block">
           <canvas
             ref={canvasRef}
@@ -233,7 +263,7 @@ export default function PdfDocumentViewer({
           />
           {screenPlacement && placement?.page === currentPage && (
             <div
-              className="absolute border-2 border-blue-500 bg-blue-50/40 pointer-events-none overflow-hidden"
+              className="absolute border-2 border-emerald-500 bg-emerald-50/40 pointer-events-none overflow-hidden"
               style={{
                 left: screenPlacement.left,
                 top: screenPlacement.top,

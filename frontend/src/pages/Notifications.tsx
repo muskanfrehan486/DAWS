@@ -25,10 +25,10 @@ const notificationStyles: Record<
 > = {
   action: {
     icon: AlertCircle,
-    iconBg: 'bg-blue-50',
-    iconColor: 'text-blue-600',
-    badgeBg: 'bg-blue-50',
-    badgeColor: 'text-blue-600',
+    iconBg: 'bg-emerald-50',
+    iconColor: 'text-emerald-600',
+    badgeBg: 'bg-emerald-50',
+    badgeColor: 'text-emerald-600',
   },
   approved: {
     icon: CheckCircle2,
@@ -91,11 +91,11 @@ function NotificationCard({
   return (
     <article
       className={`relative bg-white border rounded-xl shadow-sm hover:shadow-md transition-shadow overflow-hidden ${
-        notification.isRead ? 'border-slate-200' : 'border-blue-200'
+        notification.isRead ? 'border-slate-200' : 'border-emerald-200'
       }`}
     >
       {!notification.isRead && (
-        <span className="absolute top-4 right-4 w-2 h-2 rounded-full bg-blue-600" />
+        <span className="absolute top-4 right-4 w-2 h-2 rounded-full bg-emerald-600" />
       )}
 
       <div className="p-4 sm:p-5 flex gap-3 sm:gap-4">
@@ -115,7 +115,7 @@ function NotificationCard({
               </span>
 
               {!notification.isRead && (
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-600 sm:hidden" />
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 sm:hidden" />
               )}
             </div>
 
@@ -137,7 +137,7 @@ function NotificationCard({
             <button
               type="button"
               onClick={handleOpen}
-              className="mt-2 text-xs sm:text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors"
+              className="mt-2 text-xs sm:text-sm text-emerald-600 hover:text-emerald-700 font-medium transition-colors"
             >
               View {formatDocumentId(notification.documentId)} →
             </button>
@@ -211,7 +211,7 @@ export default function Notifications({
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
-        <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+        <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
       </div>
     );
   }
@@ -223,7 +223,7 @@ export default function Notifications({
         <button
           type="button"
           onClick={refetch}
-          className="text-sm font-medium text-blue-600 hover:text-blue-700"
+          className="text-sm font-medium text-emerald-600 hover:text-emerald-700"
         >
           Try again
         </button>
@@ -240,7 +240,7 @@ export default function Notifications({
               Notifications
             </h1>
             {unreadCount > 0 && (
-              <span className="min-w-6 h-6 px-1.5 rounded-full bg-blue-600 text-white text-xs font-semibold flex items-center justify-center">
+              <span className="min-w-6 h-6 px-1.5 rounded-full bg-emerald-600 text-white text-xs font-semibold flex items-center justify-center">
                 {unreadCount}
               </span>
             )}
@@ -254,7 +254,7 @@ export default function Notifications({
           type="button"
           onClick={handleMarkAllAsRead}
           disabled={unreadCount === 0 || actionLoading}
-          className="self-start inline-flex items-center justify-center gap-2 min-h-[38px] px-3 sm:px-4 rounded-lg border border-blue-200 bg-blue-50/30 text-blue-600 text-xs sm:text-sm font-medium hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="self-start inline-flex items-center justify-center gap-2 min-h-[38px] px-3 sm:px-4 rounded-lg border border-emerald-200 bg-emerald-50/30 text-emerald-600 text-xs sm:text-sm font-medium hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {actionLoading ? (
             <Loader2 size={15} className="animate-spin" />
@@ -276,13 +276,13 @@ export default function Notifications({
             onClick={() => setActiveTab('all')}
             className={`relative px-4 sm:px-5 pb-3 text-xs sm:text-sm font-medium transition-colors ${
               activeTab === 'all'
-                ? 'text-blue-600'
+                ? 'text-emerald-600'
                 : 'text-slate-500 hover:text-slate-700'
             }`}
           >
             All ({notifications.length})
             {activeTab === 'all' && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-600" />
             )}
           </button>
 
@@ -291,13 +291,13 @@ export default function Notifications({
             onClick={() => setActiveTab('unread')}
             className={`relative px-4 sm:px-5 pb-3 text-xs sm:text-sm font-medium transition-colors ${
               activeTab === 'unread'
-                ? 'text-blue-600'
+                ? 'text-emerald-600'
                 : 'text-slate-500 hover:text-slate-700'
             }`}
           >
             Unread ({unreadCount})
             {activeTab === 'unread' && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-600" />
             )}
           </button>
         </div>

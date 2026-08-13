@@ -145,7 +145,7 @@ export default function Administration() {
                         key={id}
                         onClick={() => setActiveTab(id)}
                         className={`flex items-center gap-2 px-5 py-3 text-sm font-medium transition-colors whitespace-nowrap ${activeTab === id
-                            ? 'border-b-2 border-blue-600 text-blue-600 bg-blue-50/50'
+                            ? 'border-b-2 border-emerald-600 text-emerald-600 bg-emerald-50/50'
                             : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
                             }`}
                     >
@@ -173,14 +173,14 @@ export default function Administration() {
                                         }
                                     }}
                                     placeholder="Search users..."
-                                    className="pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 bg-slate-50 w-64"
+                                    className="pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-500 bg-slate-50 w-64"
                                 />
                             </div>
                             <button
                                 type="button"
                                 onClick={handleAddUser}
                                 className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white"
-                                style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #0f6cbd 100%)' }}
+                                style={{ background: 'linear-gradient(135deg, #22c55e 0%, #15803d 100%)' }}
                             >
                                 <Plus size={14} />
                                 Add User
@@ -211,7 +211,7 @@ export default function Administration() {
                                             <td className="px-4 py-3 text-sm text-slate-600">{user.department.name}</td>
                                             <td className="px-4 py-3">
                                                 <span className={`text-xs font-semibold px-2 py-0.5 rounded ${user.loginRole === 'ADMINISTRATOR'
-                                                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                                     : 'bg-slate-100 text-slate-600'
                                                     }`}>
                                                     {user.loginRole === 'ADMINISTRATOR' ? 'Administrator' : 'User'}
@@ -219,7 +219,7 @@ export default function Administration() {
                                             </td>
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center gap-1">
-                                                    <button type="button" onClick={() => handleEditUser(user)} className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-blue-600 transition-colors" title="Edit">
+                                                    <button type="button" onClick={() => handleEditUser(user)} className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-emerald-600 transition-colors" title="Edit">
                                                         <Edit2 size={12} />
                                                     </button>
                                                     <button type="button" onClick={() => handleDeleteUser(user)} className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors" title="Delete">
@@ -248,7 +248,7 @@ export default function Administration() {
                                         ...form,
                                         firstName: e.target.value,
                                     })
-                                } placeholder="First name" className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-blue-500" />
+                                } placeholder="First name" className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-emerald-500" />
                         </div>
                         <div>
                             <label className="block text-xs font-medium text-slate-700 mb-1.5">Last Name</label>
@@ -258,7 +258,7 @@ export default function Administration() {
                                         ...form,
                                         lastName: e.target.value,
                                     })
-                                } placeholder="Last name" className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-blue-500" />
+                                } placeholder="Last name" className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-emerald-500" />
                         </div>
                     </div>
                     <div>
@@ -269,7 +269,7 @@ export default function Administration() {
                                     ...form,
                                     email: e.target.value,
                                 })
-                            } placeholder="user@company.com" className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-blue-500" />
+                            } placeholder="user@company.com" className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-emerald-500" />
                     </div>
                     <div>
                         <label className="block text-xs font-medium text-slate-700 mb-1.5">Password</label>
@@ -279,7 +279,7 @@ export default function Administration() {
                                     ...form,
                                     password: e.target.value,
                                 })
-                            } placeholder="password123" className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-blue-500" />
+                            } placeholder="password123" className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-emerald-500" />
                     </div>
                     <div>
                         <label className="block text-xs font-medium text-slate-700 mb-1.5">Department</label>
@@ -318,7 +318,7 @@ export default function Administration() {
                             type="button"
                             onClick={handleSaveUser}
                             className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white"
-                            style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #0f6cbd 100%)' }}
+                            style={{ background: 'linear-gradient(135deg, #22c55e 0%, #15803d 100%)' }}
                         >
                             {editingUser ? "Update User" : "Create User"}
                         </button>

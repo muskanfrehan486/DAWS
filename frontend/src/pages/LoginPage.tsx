@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { FileText, Eye, EyeOff, ArrowRight, Shield, Zap, CheckCircle } from 'lucide-react';
+import { FileText, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { login } from '../services/authApi.ts';
 import type { UserRole } from '../types/user.ts';
+import IdeasBrandPanel from '../components/IdeasBrandPanel.tsx';
 
 interface LoginPageProps {
   onLogin: (role: UserRole) => void;
@@ -43,7 +44,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           {/* Logo */}
           <div className="flex items-center gap-3 mb-10">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-lg"
-              style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #0f6cbd 100%)' }}>
+              style={{ background: 'linear-gradient(135deg, #22c55e 0%, #15803d 100%)' }}>
               <FileText size={20} className="text-white" />
             </div>
             <div>
@@ -71,7 +72,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                     value={username}
                     onChange={e => setUsername(e.target.value)}
                     placeholder="Enter your email"
-                    className="w-full px-4 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors bg-white"
+                    className="w-full px-4 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors bg-white"
                   />
                 </div>
                 <div>
@@ -82,7 +83,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                       value={password}
                       onChange={e => setPassword(e.target.value)}
                       placeholder="Enter your password"
-                      className="w-full px-4 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors bg-white pr-10"
+                      className="w-full px-4 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors bg-white pr-10"
                     />
                     <button
                       type="button"
@@ -98,7 +99,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                   type="submit"
                   disabled={loading}
                   className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-semibold text-white transition-all mt-2"
-                  style={{ background: loading ? '#64a7e0' : 'linear-gradient(135deg, #3b82f6 0%, #0f6cbd 100%)' }}
+                  style={{ background: loading ? '#86efac' : 'linear-gradient(135deg, #22c55e 0%, #15803d 100%)' }}
                 >
                   {loading ? (
                     <>
@@ -121,13 +122,13 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                   <input
                     type="email"
                     placeholder="you@company.com"
-                    className="w-full px-4 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    className="w-full px-4 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                   />
                 </div>
                 <button
                   type="button"
                   className="w-full py-2.5 rounded-lg text-sm font-semibold text-white"
-                  style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #0f6cbd 100%)' }}
+                  style={{ background: 'linear-gradient(135deg, #22c55e 0%, #15803d 100%)' }}
                 >
                   Send Reset Link
                 </button>
@@ -143,106 +144,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         </div>
       </div>
 
-      {/* Right panel — illustration */}
-      <div
-        className="hidden lg:flex flex-1 flex-col justify-center items-center p-12 relative overflow-hidden"
-        style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f6cbd 100%)' }}
-      >
-        {/* Background decoration */}
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-16 -right-16 w-80 h-80 rounded-full opacity-10"
-            style={{ background: 'radial-gradient(circle, #60a5fa 0%, transparent 70%)' }} />
-          <div className="absolute -bottom-16 -left-16 w-96 h-96 rounded-full opacity-10"
-            style={{ background: 'radial-gradient(circle, #3b82f6 0%, transparent 70%)' }} />
-          {/* Grid lines */}
-          <div className="absolute inset-0" style={{
-            backgroundImage: 'linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)',
-            backgroundSize: '40px 40px',
-          }} />
-        </div>
-
-        <div className="relative z-10 w-full max-w-sm">
-          {/* Central illustration */}
-          <div className="mb-10">
-            <ApprovalIllustration />
-          </div>
-
-          <h2 className="text-white text-2xl font-bold mb-3 text-center">
-            Streamline Your Approvals
-          </h2>
-          <p className="text-blue-200 text-sm text-center mb-8 leading-relaxed">
-            Route documents through customizable approval chains and track every decision with full audit transparency.
-          </p>
-
-          <div className="space-y-3">
-            {[
-              { icon: Shield, text: 'End-to-end audit trail for every document' },
-              { icon: Zap, text: 'Custom approval chains per document' },
-              { icon: CheckCircle, text: 'Real-time status tracking and notifications' },
-            ].map(({ icon: Icon, text }) => (
-              <div key={text} className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
-                  <Icon size={14} className="text-blue-300" />
-                </div>
-                <span className="text-blue-100 text-sm">{text}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ApprovalIllustration() {
-  const steps = [
-    { label: 'Document Uploaded', sublabel: 'Budget_FY2025.xlsx', color: '#3b82f6', done: true },
-    { label: 'Jennifer Park', sublabel: 'Reviewer · HR Dept', color: '#10b981', done: true },
-    { label: 'Sarah Mitchell', sublabel: 'Approver · IT Dept', color: '#10b981', done: true },
-    { label: 'Ali Hassan', sublabel: 'Approver · Finance', color: '#3b82f6', current: true },
-    { label: 'Michael Torres', sublabel: 'Approver · CEO', color: '#475569', done: false },
-  ];
-
-  return (
-    <div className="relative">
-      <div className="bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 p-5 space-y-0">
-        <div className="text-xs font-semibold text-blue-300 uppercase tracking-widest mb-4 flex items-center gap-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-          Live Approval Chain
-        </div>
-        {steps.map((step, i) => (
-          <div key={i}>
-            <div className="flex items-start gap-3">
-              <div className="flex flex-col items-center mt-0.5">
-                <div
-                  className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
-                  style={{
-                    background: step.current ? 'rgba(59,130,246,0.3)' : step.done ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.1)',
-                    border: step.current ? '2px solid #3b82f6' : step.done ? '2px solid #10b981' : '1.5px solid rgba(255,255,255,0.2)',
-                  }}
-                >
-                  {step.done && <div className="w-2 h-2 rounded-full bg-emerald-400" />}
-                  {step.current && <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />}
-                  {!step.done && !step.current && <div className="w-2 h-2 rounded-full bg-slate-500" />}
-                </div>
-                {i < steps.length - 1 && (
-                  <div className="w-px flex-1 my-1" style={{
-                    height: 16,
-                    background: step.done ? '#10b981' : 'rgba(255,255,255,0.15)',
-                  }} />
-                )}
-              </div>
-              <div className="pb-1">
-                <div className={`text-xs font-semibold ${step.current ? 'text-blue-300' : step.done ? 'text-emerald-300' : 'text-slate-400'}`}>
-                  {step.label}
-                  {step.current && <span className="ml-2 text-[9px] bg-blue-500/30 text-blue-300 px-1.5 py-0.5 rounded">Active</span>}
-                </div>
-                <div className="text-[10px] text-white/40 mt-0.5">{step.sublabel}</div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
+      <IdeasBrandPanel />
     </div>
   );
 }

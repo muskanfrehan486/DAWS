@@ -1,15 +1,32 @@
 @import "tailwindcss";
 
+@theme {
+  --color-brand-50: #ecfdf5;
+  --color-brand-100: #d1fae5;
+  --color-brand-200: #a7f3d0;
+  --color-brand-300: #6ee7b7;
+  --color-brand-400: #34d399;
+  --color-brand-500: #22c55e;
+  --color-brand-600: #16a34a;
+  --color-brand-700: #15803d;
+  --color-brand-800: #166534;
+  --color-brand-900: #14532d;
+}
+
 @layer components {
   .sidebar-nav-item {
     @apply flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-white/10 hover:text-white transition-colors;
   }
 
   .sidebar-nav-item.active {
-    @apply bg-blue-600/20 text-white;
+    @apply bg-emerald-600/20 text-white;
   }
 
   .doc-table-row {
     @apply hover:bg-slate-50/80 transition-colors;
+  }
+
+  .brand-gradient {
+    background: linear-gradient(135deg, #22c55e 0%, #15803d 100%);
   }
 }
