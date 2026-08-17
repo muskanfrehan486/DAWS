@@ -83,6 +83,7 @@ This will:
 
 ```bash
 npm run dev
+npm run dev -- --host
 ```
 
 The application will start with hot-reload enabled. You should see:
@@ -191,8 +192,7 @@ This system uses **Supabase Auth** for authentication. User IDs in the applicati
 2. Add authentication middleware (Supabase Auth integration)
 3. Create document upload/download handlers
 4. Implement workflow state machine logic
-5. Add email notification service
-6. Build frontend interface
+5. Build frontend interface
 
 ## Troubleshooting
 

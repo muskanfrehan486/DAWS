@@ -11,6 +11,7 @@ const ACTION_LABELS: Record<ApiApprovalActionType, AuditActionLabel> = {
   APPROVE: 'Approved',
   REJECT: 'Rejected',
   REQUEST_REVISION: 'Revision Requested',
+  SKIP: 'Step Skipped',
   DOCUMENT_UPLOADED: 'Document Uploaded',
   DOCUMENT_RESUBMITTED: 'Document Resubmitted',
   DOCUMENT_DELETED: 'Document Deleted',

@@ -45,6 +45,7 @@ function mapApprovalTypeLabel(type: ApiApprovalType): string {
 function mapWorkflowStepStatus(status: string): WorkflowStepStatus {
   if (status === 'PENDING') return 'current'
   if (status === 'WAITING') return 'pending'
+  if (status === 'SKIP') return 'skipped'
   return 'completed'
 }
 
@@ -65,6 +66,8 @@ function mapAuditActionLabel(action: string): string {
       return 'Rejected'
     case 'REQUEST_REVISION':
       return 'Revision Requested'
+    case 'SKIP':
+      return 'Step Skipped'
     case 'DOCUMENT_UPLOADED':
       return 'Document Uploaded'
     case 'DOCUMENT_RESUBMITTED':
@@ -227,7 +230,7 @@ export function assembleDocumentDetailData(
   const documentView = buildDocumentDetailView(document)
   const workflowSteps = buildWorkflowSteps(document, workflow)
   const completedSteps = workflowSteps.filter(
-    step => step.status === 'completed',
+    step => step.status === 'completed' || step.status === 'skipped',
   ).length
   const chainSteps = workflowSteps.filter(step => step.type !== 'Preparer')
   const reviewers = chainSteps.filter(step => step.type === 'Reviewer').length

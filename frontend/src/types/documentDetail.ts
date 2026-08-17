@@ -63,7 +63,7 @@ export interface ApiDocumentAuditEntry {
   comments: string | null
 }
 
-export type WorkflowStepStatus = 'completed' | 'current' | 'pending'
+export type WorkflowStepStatus = 'completed' | 'current' | 'pending' | 'skipped'
 
 export interface DocumentDetailView {
   id: string
@@ -122,10 +122,11 @@ export interface DocumentDetailData {
   canApprove: boolean
   pendingActionType: ApiApprovalType | null
   canResubmit: boolean
+  canSkipStep: boolean
 }
 
 /** Document detail without user-specific action flags (set in useDocumentDetail). */
 export type AssembledDocumentDetailData = Omit<
   DocumentDetailData,
-  'canApprove' | 'pendingActionType' | 'canResubmit'
+  'canApprove' | 'pendingActionType' | 'canResubmit' | 'canSkipStep'
 >

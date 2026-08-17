@@ -7,6 +7,7 @@ import {
   approveDocumentSchema,
   rejectDocumentSchema,
   requestRevisionSchema,
+  skipWorkflowStepSchema,
 } from "../schemas/approval.schema";
 
 const router = Router();
@@ -53,6 +54,22 @@ router.post(
       req.supabaseUserId!,
       req.body,
       req.ip
+    );
+
+    res.json(result);
+  })
+);
+
+router.post(
+  "/documents/:id/skip-step",
+  authenticate,
+  validate(skipWorkflowStepSchema),
+  asyncHandler(async (req, res) => {
+    const result = await approvalService.skipWorkflowStep(
+      req.params.id as string,
+      req.supabaseUserId!,
+      req.body,
+      req.ip,
     );
 
     res.json(result);

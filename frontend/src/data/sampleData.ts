@@ -293,7 +293,7 @@ export const MONTHLY_TREND = [
 
 export const STATUS_DISTRIBUTION = [
   { name: 'Approved', value: 42, color: '#059669' },
-  { name: 'Pending Review', value: 11, color: '#0f6cbd' },
+  { name: 'Pending Review', value: 11, color: '#15803d' },
   { name: 'Pending Approval', value: 7, color: '#d97706' },
   { name: 'Revision Req.', value: 8, color: '#7c3aed' },
   { name: 'Rejected', value: 6, color: '#dc2626' },

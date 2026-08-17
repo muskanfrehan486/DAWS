@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import LoginPage from './pages/LoginPage';
 import { getAuthToken, restoreSession, setAuthToken } from './services/authApi.ts';
 import Administration from './pages/AdminPage';
-import UserDashboard from './pages/UserDashboard';
 import AppShell from './components/AppShell.tsx';
 import type { UserRole } from './types/user.ts';
 import DocumentPage from './pages/DocumentPage.tsx';
@@ -15,7 +14,6 @@ import { CurrentUserProvider, type CurrentUser } from './contexts/CurrentUserCon
 
 export type Page =
   | 'dashboard'
-  | 'my-documents'
   | 'pending-approvals'
   | 'submit-document'
   | 'document-details'
@@ -28,7 +26,7 @@ export default function App() {
   const [authChecked, setAuthChecked] = useState(false);
   const [activePage, setActivePage] = useState<Page>('dashboard');
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
-  const [returnPage, setReturnPage] = useState<Page>('my-documents');
+  const [returnPage, setReturnPage] = useState<Page>('dashboard');
   const [sessionUser, setSessionUser] = useState<CurrentUser | null>(null);
   const [sessionKey, setSessionKey] = useState(0);
 
@@ -80,7 +78,7 @@ export default function App() {
 
   if (!authChecked) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#f3f6fb' }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#f0f7f2' }}>
         <p className="text-sm text-slate-500">Loading...</p>
       </div>
     );
@@ -96,18 +94,11 @@ export default function App() {
         return <Administration />;
       case 'dashboard':
         return (
-          <UserDashboard
+          <DocumentPage
             onNavigate={handleNavigate}
             onOpenDocument={handleOpenDocument}
           />
         );
-        case 'my-documents':
-          return (
-            <DocumentPage
-              onNavigate={handleNavigate}
-              onOpenDocument={handleOpenDocument}
-            />
-          );
         case 'pending-approvals':
           return (
             <PendingApproval

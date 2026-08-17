@@ -11,6 +11,7 @@ import {
   MessageSquare,
   MoreHorizontal,
   RotateCcw,
+  SkipForward,
   Trash2,
   Upload,
   User,
@@ -23,7 +24,7 @@ import SignApproveModal from '../components/SignApproveModal'
 import StatusBadge from '../components/StatusBadge'
 import { useCurrentUser } from '../contexts/CurrentUserContext'
 import { useDocumentDetail } from '../hooks/useDocumentDetail'
-import { requestRevision } from '../services/approvalApi'
+import { requestRevision, skipWorkflowStep } from '../services/approvalApi'
 import { downloadDocumentAuditCsv } from '../services/auditApi'
 import { fetchDocumentFile, resubmitDocument } from '../services/documentDetailApi'
 import { deleteDocument } from '../services/documentsApi'
@@ -39,7 +40,6 @@ type Tab = 'overview' | 'workflow' | 'comments' | 'audit'
 
 const returnPageLabels: Record<Page, string> = {
   dashboard: 'Dashboard',
-  'my-documents': 'My Documents',
   'pending-approvals': 'Pending Approvals',
   'submit-document': 'Submit Document',
   'document-details': 'Document',
@@ -56,7 +56,7 @@ function Avatar({
   color?: 'blue' | 'green' | 'gray'
 }) {
   const colors = {
-    blue: 'bg-blue-100 text-blue-600',
+    blue: 'bg-emerald-100 text-emerald-600',
     green: 'bg-emerald-100 text-emerald-600',
     gray: 'bg-slate-100 text-slate-500',
   }
@@ -94,7 +94,7 @@ function WorkflowStatusPanel({
       <div className="mb-5">
         <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
           <div
-            className="h-full bg-blue-500 rounded-full transition-all"
+            className="h-full bg-emerald-500 rounded-full transition-all"
             style={{ width: `${progress}%` }}
           />
         </div>
@@ -109,7 +109,9 @@ function WorkflowStatusPanel({
               {!isLast && (
                 <div
                   className={`absolute left-[15px] top-[32px] w-px h-[calc(100%-8px)] ${
-                    step.status === 'completed' ? 'bg-emerald-400' : 'bg-slate-200'
+                    step.status === 'completed' || step.status === 'skipped'
+                      ? 'bg-emerald-400'
+                      : 'bg-slate-200'
                   }`}
                 />
               )}
@@ -121,8 +123,13 @@ function WorkflowStatusPanel({
                   </div>
                 )}
                 {step.status === 'current' && (
-                  <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center">
                     <Clock3 size={16} className="text-white" />
+                  </div>
+                )}
+                {step.status === 'skipped' && (
+                  <div className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center">
+                    <SkipForward size={16} className="text-white" />
                   </div>
                 )}
                 {step.status === 'pending' && (
@@ -137,8 +144,13 @@ function WorkflowStatusPanel({
                       Step {step.step} · {step.type}
                     </span>
                     {step.status === 'current' && (
-                      <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 text-[10px] font-medium">
+                      <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 text-[10px] font-medium">
                         Current
+                      </span>
+                    )}
+                    {step.status === 'skipped' && (
+                      <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 text-[10px] font-medium">
+                        Skipped
                       </span>
                     )}
                   </div>
@@ -155,7 +167,9 @@ function WorkflowStatusPanel({
                         ? 'gray'
                         : step.status === 'current'
                           ? 'blue'
-                          : 'green'
+                          : step.status === 'skipped'
+                            ? 'gray'
+                            : 'green'
                     }
                   />
                   <span
@@ -168,8 +182,12 @@ function WorkflowStatusPanel({
                 </div>
 
                 {step.comment && (
-                  <p className="mt-2 text-xs text-slate-500 leading-relaxed">
-                    {step.comment}
+                  <p
+                    className={`mt-2 text-xs leading-relaxed ${
+                      step.status === 'skipped' ? 'text-amber-700' : 'text-slate-500'
+                    }`}
+                  >
+                    {step.status === 'skipped' ? `Reason: ${step.comment}` : step.comment}
                   </p>
                 )}
               </div>
@@ -376,7 +394,7 @@ function DocumentPreview({
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={resubmitLoading}
-                className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-blue-600 text-white text-xs sm:text-sm font-medium hover:bg-blue-700 disabled:opacity-60"
+                className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-emerald-600 text-white text-xs sm:text-sm font-medium hover:bg-emerald-700 disabled:opacity-60"
               >
                 {resubmitLoading ? (
                   <Loader2 size={15} className="animate-spin" />
@@ -403,7 +421,7 @@ function DocumentPreview({
       <div className="p-4 bg-slate-50">
         {loading ? (
           <div className="flex items-center justify-center min-h-[280px] gap-2 text-sm text-slate-500">
-            <Loader2 size={18} className="animate-spin text-blue-600" />
+            <Loader2 size={18} className="animate-spin text-emerald-600" />
             Loading preview...
           </div>
         ) : error ? (
@@ -480,7 +498,7 @@ function CommentsTab({
           onChange={e => setNewComment(e.target.value)}
           rows={3}
           placeholder="Write a comment..."
-          className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 placeholder:text-slate-400 resize-none outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+          className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 placeholder:text-slate-400 resize-none outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
         />
         {error && (
           <p className="mt-2 text-xs text-red-600">{error}</p>
@@ -490,7 +508,7 @@ function CommentsTab({
             type="button"
             disabled={!newComment.trim() || commentLoading}
             onClick={handleSubmit}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {commentLoading && <Loader2 size={14} className="animate-spin" />}
             Add Comment
@@ -565,7 +583,7 @@ function AuditHistoryTab({
                     <td className="px-4 py-3 text-xs text-slate-700">{record.user}</td>
                     <td className="px-4 py-3 text-xs text-slate-500">{record.role}</td>
                     <td className="px-4 py-3">
-                      <span className="inline-flex px-2 py-1 rounded bg-blue-50 text-blue-600 text-[10px] font-medium">
+                      <span className="inline-flex px-2 py-1 rounded bg-emerald-50 text-emerald-600 text-[10px] font-medium">
                         {record.action}
                       </span>
                     </td>
@@ -584,7 +602,7 @@ function AuditHistoryTab({
                   <span className="text-[10px] text-slate-400">{record.date}</span>
                 </div>
                 <p className="mt-1 text-xs text-slate-500">{record.role}</p>
-                <span className="inline-flex mt-2 px-2 py-1 rounded bg-blue-50 text-blue-600 text-[10px] font-medium">
+                <span className="inline-flex mt-2 px-2 py-1 rounded bg-emerald-50 text-emerald-600 text-[10px] font-medium">
                   {record.action}
                 </span>
                 {record.comment !== '—' && (
@@ -615,8 +633,11 @@ export default function DocumentDetail({
   const [signModalOpen, setSignModalOpen] = useState(false)
   const [revisionModalOpen, setRevisionModalOpen] = useState(false)
   const [revisionComment, setRevisionComment] = useState('')
-  const [revisionLoading, setRevisionLoading] = useState(false)
   const [revisionError, setRevisionError] = useState<string | null>(null)
+  const [skipModalOpen, setSkipModalOpen] = useState(false)
+  const [skipReason, setSkipReason] = useState('')
+  const [skipError, setSkipError] = useState<string | null>(null)
+  const [skipLoading, setSkipLoading] = useState(false)
   const [resubmitLoading, setResubmitLoading] = useState(false)
   const [resubmitError, setResubmitError] = useState<string | null>(null)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
@@ -638,7 +659,6 @@ export default function DocumentDetail({
   }
 
   const closeRevisionModal = () => {
-    if (revisionLoading) return
     setRevisionModalOpen(false)
     setRevisionComment('')
     setRevisionError(null)
@@ -650,19 +670,51 @@ export default function DocumentDetail({
       return
     }
 
-    setRevisionLoading(true)
+    const comment = revisionComment.trim()
+    setRevisionModalOpen(false)
+    setRevisionComment('')
     setRevisionError(null)
 
     try {
-      await requestRevision(documentId, revisionComment)
-      setRevisionModalOpen(false)
-      setRevisionComment('')
-      setRevisionError(null)
+      await requestRevision(documentId, comment)
       onBack()
     } catch (err) {
       setRevisionError(err instanceof Error ? err.message : 'Request failed')
+      setRevisionModalOpen(true)
+    }
+  }
+
+  const openSkipModal = () => {
+    setSkipReason('')
+    setSkipError(null)
+    setSkipModalOpen(true)
+  }
+
+  const closeSkipModal = () => {
+    if (skipLoading) return
+    setSkipModalOpen(false)
+    setSkipReason('')
+    setSkipError(null)
+  }
+
+  const handleConfirmSkip = async () => {
+    if (!skipReason.trim()) {
+      setSkipError('A reason is required to skip the current workflow step.')
+      return
+    }
+
+    setSkipLoading(true)
+    setSkipError(null)
+
+    try {
+      await skipWorkflowStep(documentId, skipReason.trim())
+      setSkipModalOpen(false)
+      setSkipReason('')
+      await refetch()
+    } catch (err) {
+      setSkipError(err instanceof Error ? err.message : 'Skip failed')
     } finally {
-      setRevisionLoading(false)
+      setSkipLoading(false)
     }
   }
 
@@ -724,7 +776,7 @@ export default function DocumentDetail({
   if (loading) {
     return (
       <main className="w-full max-w-[1400px] mx-auto px-3 sm:px-5 lg:px-6 py-16 flex flex-col items-center justify-center gap-3">
-        <Loader2 size={32} className="animate-spin text-blue-600" />
+        <Loader2 size={32} className="animate-spin text-emerald-600" />
         <p className="text-sm text-slate-500">Loading document...</p>
       </main>
     )
@@ -748,7 +800,7 @@ export default function DocumentDetail({
             <button
               type="button"
               onClick={refetch}
-              className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700"
+              className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700"
             >
               Retry
             </button>
@@ -758,7 +810,7 @@ export default function DocumentDetail({
     )
   }
 
-  const { document, workflowSteps, completedSteps, totalSteps, reviewers, approvers, workflowSummary, comments, auditRecords, canApprove, canResubmit, pendingActionType } = data
+  const { document, workflowSteps, completedSteps, totalSteps, reviewers, approvers, workflowSummary, comments, auditRecords, canApprove, canResubmit, canSkipStep, pendingActionType } = data
   const isDeleted = document.status === 'deleted'
   const canDelete = user?.id === document.preparerId && !isDeleted
 
@@ -768,12 +820,12 @@ export default function DocumentDetail({
         <button
           type="button"
           onClick={() => onNavigate('dashboard')}
-          className="text-slate-400 hover:text-blue-600"
+          className="text-slate-400 hover:text-emerald-600"
         >
           Dashboard
         </button>
         <span className="text-slate-300">/</span>
-        <button type="button" onClick={onBack} className="text-slate-400 hover:text-blue-600">
+        <button type="button" onClick={onBack} className="text-slate-400 hover:text-emerald-600">
           {returnPageLabels[returnPage]}
         </button>
         <span className="text-slate-300">/</span>
@@ -822,6 +874,16 @@ export default function DocumentDetail({
           </div>
 
           <div className="flex gap-2 w-full lg:w-auto flex-shrink-0 flex-wrap">
+            {canSkipStep && (
+              <button
+                type="button"
+                onClick={openSkipModal}
+                className="flex-1 lg:flex-none inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 text-xs sm:text-sm font-medium hover:bg-amber-100"
+              >
+                <SkipForward size={15} />
+                Skip Current Step
+              </button>
+            )}
             {canDelete && (
               <button
                 type="button"
@@ -891,12 +953,12 @@ export default function DocumentDetail({
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
                 className={`relative flex-shrink-0 px-4 sm:px-5 py-3.5 text-xs sm:text-sm font-medium transition-colors ${
-                  active ? 'text-blue-600' : 'text-slate-500 hover:text-slate-700'
+                  active ? 'text-emerald-600' : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
                 {tab.label}
                 {active && (
-                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-600" />
                 )}
               </button>
             )
@@ -993,7 +1055,7 @@ export default function DocumentDetail({
             onChange={e => setRevisionComment(e.target.value)}
             rows={4}
             placeholder="Revision comments (required)"
-            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 resize-none"
+            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 resize-none"
           />
           {revisionError && (
             <p className="text-sm text-red-600">{revisionError}</p>
@@ -1002,18 +1064,58 @@ export default function DocumentDetail({
             <button
               type="button"
               onClick={closeRevisionModal}
-              disabled={revisionLoading}
-              className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg disabled:opacity-50"
+              className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={handleConfirmRevision}
-              disabled={revisionLoading}
-              className="px-4 py-2 text-sm font-semibold text-white bg-violet-600 hover:bg-violet-700 rounded-lg disabled:opacity-50"
+              className="px-4 py-2 text-sm font-semibold text-white bg-violet-600 hover:bg-violet-700 rounded-lg"
             >
-              {revisionLoading ? 'Submitting...' : 'Confirm'}
+              Confirm
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={skipModalOpen}
+        onClose={closeSkipModal}
+        title="Skip Current Step"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600">
+            Skip the person currently assigned to review or approve this document.
+            The reason you provide will be visible to everyone on this document.
+          </p>
+          <textarea
+            value={skipReason}
+            onChange={e => setSkipReason(e.target.value)}
+            rows={4}
+            placeholder="Reason for skipping (required)"
+            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 resize-none"
+          />
+          {skipError && (
+            <p className="text-sm text-red-600">{skipError}</p>
+          )}
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={closeSkipModal}
+              disabled={skipLoading}
+              className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmSkip}
+              disabled={skipLoading}
+              className="px-4 py-2 text-sm font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg disabled:opacity-50"
+            >
+              {skipLoading ? 'Skipping...' : 'Skip Step'}
             </button>
           </div>
         </div>

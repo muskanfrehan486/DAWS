@@ -117,7 +117,7 @@ export default function SubmitDocument({
         approvalChain: toApprovalChainPayload(steps),
       });
 
-      onNavigate('my-documents');
+      onNavigate('dashboard');
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Failed to submit document');
     } finally {
@@ -128,7 +128,7 @@ export default function SubmitDocument({
   if (usersLoading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
-        <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+        <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
       </div>
     );
   }
@@ -140,7 +140,7 @@ export default function SubmitDocument({
         <button
           type="button"
           onClick={refetch}
-          className="text-sm font-medium text-blue-600 hover:text-blue-700"
+          className="text-sm font-medium text-emerald-600 hover:text-emerald-700"
         >
           Try again
         </button>
@@ -181,7 +181,7 @@ export default function SubmitDocument({
             /
           </span>
   
-          <span className="text-blue-600 font-medium">
+          <span className="text-emerald-600 font-medium">
             Submit Document
           </span>
         </div>
@@ -234,7 +234,7 @@ export default function SubmitDocument({
               w-8
               h-8
               rounded-lg
-              bg-blue-50
+              bg-emerald-50
               flex
               items-center
               justify-center
@@ -242,7 +242,7 @@ export default function SubmitDocument({
             ">
               <FileText
                 size={16}
-                className="text-blue-600"
+                className="text-emerald-600"
               />
             </div>
   
@@ -302,9 +302,9 @@ export default function SubmitDocument({
                   outline-none
                   text-slate-700
                   placeholder:text-slate-400
-                  focus:border-blue-400
+                  focus:border-emerald-400
                   focus:ring-2
-                  focus:ring-blue-100
+                  focus:ring-emerald-100
                 "
               />
             </div>
@@ -349,9 +349,9 @@ export default function SubmitDocument({
                   resize-none
                   text-slate-700
                   placeholder:text-slate-400
-                  focus:border-blue-400
+                  focus:border-emerald-400
                   focus:ring-2
-                  focus:ring-blue-100
+                  focus:ring-emerald-100
                 "
               />
             </div>
@@ -439,8 +439,8 @@ export default function SubmitDocument({
                 text-center
                 px-4
                 cursor-pointer
-                hover:border-blue-300
-                hover:bg-blue-50/20
+                hover:border-emerald-300
+                hover:bg-emerald-50/20
                 transition-colors
               "
             >
@@ -462,7 +462,7 @@ export default function SubmitDocument({
                     w-12
                     h-12
                     rounded-xl
-                    bg-blue-50
+                    bg-emerald-50
                     flex
                     items-center
                     justify-center
@@ -470,7 +470,7 @@ export default function SubmitDocument({
                   ">
                     <FileText
                       size={24}
-                      className="text-blue-600"
+                      className="text-emerald-600"
                     />
                   </div>
   
@@ -537,7 +537,7 @@ export default function SubmitDocument({
   
                   <p className="
                     text-xs
-                    text-blue-500
+                    text-emerald-500
                     mt-1
                   ">
                     or click to browse from your computer
@@ -702,7 +702,7 @@ export default function SubmitDocument({
                         w-7
                         h-7
                         rounded-full
-                        bg-blue-600
+                        bg-emerald-600
                         text-white
                         flex
                         items-center
@@ -789,9 +789,9 @@ export default function SubmitDocument({
                             text-slate-700
                             outline-none
                             appearance-none
-                            focus:border-blue-400
+                            focus:border-emerald-400
                             focus:ring-2
-                            focus:ring-blue-100
+                            focus:ring-emerald-100
                           "
                         >
                           {APPROVAL_TYPE_OPTIONS.map(option => (
@@ -852,9 +852,9 @@ export default function SubmitDocument({
                           text-slate-700
                           outline-none
                           appearance-none
-                          focus:border-blue-400
+                          focus:border-emerald-400
                           focus:ring-2
-                          focus:ring-blue-100
+                          focus:ring-emerald-100
                         "
                       >
                         <option value="">Select a user...</option>
@@ -893,17 +893,17 @@ export default function SubmitDocument({
                 rounded-xl
                 border-2
                 border-dashed
-                border-blue-200
-                text-blue-600
+                border-emerald-200
+                text-emerald-600
                 text-sm
                 font-medium
                 flex
                 items-center
                 justify-center
                 gap-2
-                hover:bg-blue-50
-                hover:border-blue-300
-                active:bg-blue-100
+                hover:bg-emerald-50
+                hover:border-emerald-300
+                active:bg-emerald-100
                 transition-colors
               "
             >
@@ -938,9 +938,9 @@ export default function SubmitDocument({
               min-h-[44px]
               px-5
               rounded-lg
-              bg-blue-600
-              hover:bg-blue-700
-              active:bg-blue-800
+              bg-emerald-600
+              hover:bg-emerald-700
+              active:bg-emerald-800
               text-white
               text-sm
               font-semibold
@@ -963,7 +963,7 @@ export default function SubmitDocument({
 
           <button
             type="button"
-            onClick={() => onNavigate('my-documents')}
+            onClick={() => onNavigate('dashboard')}
             disabled={submitting}
             className="
               w-full

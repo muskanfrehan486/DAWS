@@ -92,5 +92,13 @@ export async function getMe() {
     firstName: data.firstName,
     lastName: data.lastName,
     role: normalizeUserRole(data.loginRole),
-  } as { id: string; email: string; firstName: string; lastName: string; role: UserRole }
+    hasSignature: Boolean(data.signatureStoragePath),
+  } as {
+    id: string
+    email: string
+    firstName: string
+    lastName: string
+    role: UserRole
+    hasSignature: boolean
+  }
 }

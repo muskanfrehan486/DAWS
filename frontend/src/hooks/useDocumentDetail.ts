@@ -88,6 +88,11 @@ export function useDocumentDetail(documentId: string) {
         canResubmit:
           document.preparerId === user.id &&
           workflow.documentStatus === 'REVISION_REQUESTED',
+        canSkipStep:
+          document.preparerId === user.id &&
+          workflow.documentStatus === 'PENDING_REVIEW' &&
+          workflow.workflowStatus === 'IN_PROGRESS' &&
+          (workflow.workflow ?? []).some(step => step.status === 'PENDING'),
       })
     } catch (err) {
       setData(null)

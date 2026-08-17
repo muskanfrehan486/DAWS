@@ -18,3 +18,19 @@ export const uploadDocument = multer({
     fileSize: 20 * 1024 * 1024, //20MB
   },
 });
+
+const signatureFileFilter: multer.Options["fileFilter"] = (_req, file, cb) => {
+  if (!["image/png", "image/jpeg"].includes(file.mimetype)) {
+    return cb(errors.badRequest("Only PNG or JPEG signature images are allowed"));
+  }
+
+  cb(null, true);
+};
+
+export const uploadSignature = multer({
+  storage,
+  fileFilter: signatureFileFilter,
+  limits: {
+    fileSize: 2 * 1024 * 1024,
+  },
+});
