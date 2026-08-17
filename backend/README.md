@@ -83,6 +83,7 @@ This will:
 
 ```bash
 npm run dev
+npm run dev -- --host
 ```
 
 The application will start with hot-reload enabled. You should see:

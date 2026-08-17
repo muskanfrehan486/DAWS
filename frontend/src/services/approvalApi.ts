@@ -48,7 +48,8 @@ export async function skipWorkflowStep(documentId: string, reason: string) {
 }
 
 export interface ApproveDocumentPayload {
-  signatureImage: string
+  useSavedSignature?: boolean
+  signatureImage?: string
   signaturePage: number
   signatureX: number
   signatureY: number

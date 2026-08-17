@@ -141,7 +141,9 @@ export default function SignApproveModal({
 
     try {
       await approveDocument(documentId, {
-        signatureImage,
+        ...(signatureMode === 'saved'
+          ? { useSavedSignature: true }
+          : { signatureImage: signatureImage! }),
         signaturePage: placement.page,
         signatureX: placement.signatureX,
         signatureY: placement.signatureY,

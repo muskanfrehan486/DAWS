@@ -17,6 +17,16 @@ export function errorHandler(
     return;
   }
 
+  if ("type" in error && error.type === "entity.too.large") {
+    res.status(413).json({
+      error: {
+        message: "Request payload is too large",
+        code: "PAYLOAD_TOO_LARGE",
+      },
+    });
+    return;
+  }
+
   console.error("Unhandled error:", error);
 
   res.status(500).json({

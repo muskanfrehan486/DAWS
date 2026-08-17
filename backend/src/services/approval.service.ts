@@ -4,6 +4,7 @@ import { errors } from "../lib/errors";
 import { storageService } from "../lib/supabase.storage";
 import { auditService } from "./audit.service";
 import { notificationsService } from "./notifications.service";
+import { usersService } from "./users.service";
 import {
   ApproveDocumentInput,
   RejectDocumentInput,
@@ -348,7 +349,9 @@ class ApprovalService {
 
     const storagePath = version.storagePath;
     const pdfBuffer = await storageService.downloadDocument(storagePath);
-    const signatureBuffer = this.decodeSignatureImage(input.signatureImage);
+    const signatureBuffer = input.useSavedSignature
+      ? (await usersService.getSignature(actorId)).buffer
+      : this.decodeSignatureImage(input.signatureImage!);
     const signedPdfBuffer = await this.embedSignatureInPdf(
       pdfBuffer,
       signatureBuffer,
