@@ -177,6 +177,7 @@ export default function PendingApprovals({
   const [comment, setComment] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [pageActionError, setPageActionError] = useState<string | null>(null);
 
   const openActionModal = (type: ActionType, documentId: string) => {
     setActiveAction({ type, documentId });
@@ -199,20 +200,25 @@ export default function PendingApprovals({
       return;
     }
 
-    setActionLoading(true);
+    const { type, documentId } = activeAction;
+    const commentText = comment;
+
+    setActiveAction(null);
+    setComment('');
     setActionError(null);
+    setPageActionError(null);
+    setActionLoading(true);
 
     try {
-      if (activeAction.type === 'reject') {
-        await rejectDocument(activeAction.documentId, comment);
+      if (type === 'reject') {
+        await rejectDocument(documentId, commentText);
       } else {
-        await requestRevision(activeAction.documentId, comment);
+        await requestRevision(documentId, commentText);
       }
 
-      closeActionModal();
       refetch();
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'Action failed');
+      setPageActionError(err instanceof Error ? err.message : 'Action failed');
     } finally {
       setActionLoading(false);
     }
@@ -264,6 +270,12 @@ export default function PendingApprovals({
           </span>
         </div>
       </div>
+
+      {pageActionError && (
+        <div className="mb-4 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+          {pageActionError}
+        </div>
+      )}
 
       {documents.length > 0 && (
         <div className="space-y-4">

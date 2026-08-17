@@ -3,7 +3,7 @@ import { prisma } from "../prisma";
 import { errors } from "../lib/errors";
 import { storageService } from "../lib/supabase.storage";
 import { ApprovalType } from "../generated/prisma/client";
-import { notificationDispatcher } from "./notification-dispatcher.service";
+import { notificationsService } from "./notifications.service";
 import { auditService } from "./audit.service";
 import {
   CreateDocumentInput,
@@ -130,26 +130,14 @@ class DocumentsService {
 
       const firstStep = approvalChain[0];
       if (firstStep) {
-        const preparer = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { firstName: true, lastName: true },
-        });
         const isReview = firstStep.approvalType === ApprovalType.REVIEWER;
-        await notificationDispatcher.dispatch({
+        await notificationsService.createNotification({
           recipientId: firstStep.userId,
           type: "APPROVAL_NEEDED",
           title: isReview ? "Review Required" : "Approval Required",
           message: `Document "${title}" requires your ${isReview ? "review" : "approval"}.`,
           documentId,
-          documentTitle: title,
           workflowRunId: document.workflowRunId,
-          metadata: {
-            actorName: preparer
-              ? `${preparer.firstName} ${preparer.lastName}`.trim()
-              : undefined,
-            workflowStep: isReview ? "Review" : "Approval",
-            isReview,
-          },
         });
       }
 
@@ -715,26 +703,14 @@ class DocumentsService {
     });
 
     if (result.firstStep) {
-      const preparer = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { firstName: true, lastName: true },
-      });
       const isReview = result.firstStep.approvalType === ApprovalType.REVIEWER;
-      await notificationDispatcher.dispatch({
+      await notificationsService.createNotification({
         recipientId: result.firstStep.assignedUserId,
         type: "APPROVAL_NEEDED",
         title: isReview ? "Review Required" : "Approval Required",
         message: `Revised document "${result.documentTitle}" requires your ${isReview ? "review" : "approval"}.`,
         documentId,
-        documentTitle: result.documentTitle,
         workflowRunId: result.workflowRunId,
-        metadata: {
-          actorName: preparer
-            ? `${preparer.firstName} ${preparer.lastName}`.trim()
-            : undefined,
-          workflowStep: isReview ? "Review" : "Approval",
-          isReview,
-        },
       });
     }
 
@@ -843,20 +819,22 @@ class DocumentsService {
         newValue: { status: "DELETED" },
         tx,
       });
+
+      for (const recipientId of recipientIds) {
+        if (recipientId === userId) {
+          continue;
+        }
+
+        await notificationsService.createNotification({
+          recipientId,
+          type: "DOCUMENT_DELETED",
+          title: "Document Deleted",
+          message: `The preparer deleted "${document.title}".`,
+          documentId,
+          tx,
+        });
+      }
     });
-
-    const deleteNotifications = [...recipientIds]
-      .filter((recipientId) => recipientId !== userId)
-      .map((recipientId) => ({
-        recipientId,
-        type: "DOCUMENT_DELETED" as const,
-        title: "Document Deleted",
-        message: `The preparer deleted "${document.title}".`,
-        documentId,
-        documentTitle: document.title,
-      }));
-
-    await notificationDispatcher.dispatchMany(deleteNotifications);
 
     for (const path of storagePaths) {
       await storageService.deleteDocument(path);

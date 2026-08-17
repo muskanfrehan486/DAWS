@@ -51,6 +51,18 @@ export const requestRevisionSchema = z.object({
   }),
 });
 
+export const skipWorkflowStepSchema = z.object({
+  params: documentIdParams,
+  body: z.object({
+    reason: z
+      .string()
+      .trim()
+      .min(1, "A reason is required to skip a workflow step")
+      .max(2000, "Reason cannot exceed 2000 characters"),
+  }),
+});
+
 export type ApproveDocumentInput = z.infer<typeof approveDocumentSchema>["body"];
 export type RejectDocumentInput = z.infer<typeof rejectDocumentSchema>["body"];
 export type RequestRevisionInput = z.infer<typeof requestRevisionSchema>["body"];
+export type SkipWorkflowStepInput = z.infer<typeof skipWorkflowStepSchema>["body"];

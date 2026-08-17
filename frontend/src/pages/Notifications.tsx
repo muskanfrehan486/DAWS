@@ -239,11 +239,6 @@ export default function Notifications({
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
               Notifications
             </h1>
-            {unreadCount > 0 && (
-              <span className="min-w-6 h-6 px-1.5 rounded-full bg-emerald-600 text-white text-xs font-semibold flex items-center justify-center">
-                {unreadCount}
-              </span>
-            )}
           </div>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
             Stay updated on document status and required actions
@@ -295,7 +290,7 @@ export default function Notifications({
                 : 'text-slate-500 hover:text-slate-700'
             }`}
           >
-            Unread ({unreadCount})
+            Unread
             {activeTab === 'unread' && (
               <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-600" />
             )}

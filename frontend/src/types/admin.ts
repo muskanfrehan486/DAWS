@@ -17,3 +17,14 @@ export type UpdateUserPayload = {
   departmentId?: string
   loginRole?: string
 }
+
+export type BulkUserImportFailure = {
+  row: number
+  email?: string
+  error: string
+}
+
+export type BulkUserImportResult = {
+  created: number
+  failed: BulkUserImportFailure[]
+}

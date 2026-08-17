@@ -11,6 +11,7 @@ import {
   MessageSquare,
   MoreHorizontal,
   RotateCcw,
+  SkipForward,
   Trash2,
   Upload,
   User,
@@ -23,7 +24,7 @@ import SignApproveModal from '../components/SignApproveModal'
 import StatusBadge from '../components/StatusBadge'
 import { useCurrentUser } from '../contexts/CurrentUserContext'
 import { useDocumentDetail } from '../hooks/useDocumentDetail'
-import { requestRevision } from '../services/approvalApi'
+import { requestRevision, skipWorkflowStep } from '../services/approvalApi'
 import { downloadDocumentAuditCsv } from '../services/auditApi'
 import { fetchDocumentFile, resubmitDocument } from '../services/documentDetailApi'
 import { deleteDocument } from '../services/documentsApi'
@@ -108,7 +109,9 @@ function WorkflowStatusPanel({
               {!isLast && (
                 <div
                   className={`absolute left-[15px] top-[32px] w-px h-[calc(100%-8px)] ${
-                    step.status === 'completed' ? 'bg-emerald-400' : 'bg-slate-200'
+                    step.status === 'completed' || step.status === 'skipped'
+                      ? 'bg-emerald-400'
+                      : 'bg-slate-200'
                   }`}
                 />
               )}
@@ -122,6 +125,11 @@ function WorkflowStatusPanel({
                 {step.status === 'current' && (
                   <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center">
                     <Clock3 size={16} className="text-white" />
+                  </div>
+                )}
+                {step.status === 'skipped' && (
+                  <div className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center">
+                    <SkipForward size={16} className="text-white" />
                   </div>
                 )}
                 {step.status === 'pending' && (
@@ -140,6 +148,11 @@ function WorkflowStatusPanel({
                         Current
                       </span>
                     )}
+                    {step.status === 'skipped' && (
+                      <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 text-[10px] font-medium">
+                        Skipped
+                      </span>
+                    )}
                   </div>
                   {step.date && (
                     <span className="text-[10px] text-slate-400">{step.date}</span>
@@ -154,7 +167,9 @@ function WorkflowStatusPanel({
                         ? 'gray'
                         : step.status === 'current'
                           ? 'blue'
-                          : 'green'
+                          : step.status === 'skipped'
+                            ? 'gray'
+                            : 'green'
                     }
                   />
                   <span
@@ -167,8 +182,12 @@ function WorkflowStatusPanel({
                 </div>
 
                 {step.comment && (
-                  <p className="mt-2 text-xs text-slate-500 leading-relaxed">
-                    {step.comment}
+                  <p
+                    className={`mt-2 text-xs leading-relaxed ${
+                      step.status === 'skipped' ? 'text-amber-700' : 'text-slate-500'
+                    }`}
+                  >
+                    {step.status === 'skipped' ? `Reason: ${step.comment}` : step.comment}
                   </p>
                 )}
               </div>
@@ -614,8 +633,11 @@ export default function DocumentDetail({
   const [signModalOpen, setSignModalOpen] = useState(false)
   const [revisionModalOpen, setRevisionModalOpen] = useState(false)
   const [revisionComment, setRevisionComment] = useState('')
-  const [revisionLoading, setRevisionLoading] = useState(false)
   const [revisionError, setRevisionError] = useState<string | null>(null)
+  const [skipModalOpen, setSkipModalOpen] = useState(false)
+  const [skipReason, setSkipReason] = useState('')
+  const [skipError, setSkipError] = useState<string | null>(null)
+  const [skipLoading, setSkipLoading] = useState(false)
   const [resubmitLoading, setResubmitLoading] = useState(false)
   const [resubmitError, setResubmitError] = useState<string | null>(null)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
@@ -637,7 +659,6 @@ export default function DocumentDetail({
   }
 
   const closeRevisionModal = () => {
-    if (revisionLoading) return
     setRevisionModalOpen(false)
     setRevisionComment('')
     setRevisionError(null)
@@ -649,19 +670,51 @@ export default function DocumentDetail({
       return
     }
 
-    setRevisionLoading(true)
+    const comment = revisionComment.trim()
+    setRevisionModalOpen(false)
+    setRevisionComment('')
     setRevisionError(null)
 
     try {
-      await requestRevision(documentId, revisionComment)
-      setRevisionModalOpen(false)
-      setRevisionComment('')
-      setRevisionError(null)
+      await requestRevision(documentId, comment)
       onBack()
     } catch (err) {
       setRevisionError(err instanceof Error ? err.message : 'Request failed')
+      setRevisionModalOpen(true)
+    }
+  }
+
+  const openSkipModal = () => {
+    setSkipReason('')
+    setSkipError(null)
+    setSkipModalOpen(true)
+  }
+
+  const closeSkipModal = () => {
+    if (skipLoading) return
+    setSkipModalOpen(false)
+    setSkipReason('')
+    setSkipError(null)
+  }
+
+  const handleConfirmSkip = async () => {
+    if (!skipReason.trim()) {
+      setSkipError('A reason is required to skip the current workflow step.')
+      return
+    }
+
+    setSkipLoading(true)
+    setSkipError(null)
+
+    try {
+      await skipWorkflowStep(documentId, skipReason.trim())
+      setSkipModalOpen(false)
+      setSkipReason('')
+      await refetch()
+    } catch (err) {
+      setSkipError(err instanceof Error ? err.message : 'Skip failed')
     } finally {
-      setRevisionLoading(false)
+      setSkipLoading(false)
     }
   }
 
@@ -757,7 +810,7 @@ export default function DocumentDetail({
     )
   }
 
-  const { document, workflowSteps, completedSteps, totalSteps, reviewers, approvers, workflowSummary, comments, auditRecords, canApprove, canResubmit, pendingActionType } = data
+  const { document, workflowSteps, completedSteps, totalSteps, reviewers, approvers, workflowSummary, comments, auditRecords, canApprove, canResubmit, canSkipStep, pendingActionType } = data
   const isDeleted = document.status === 'deleted'
   const canDelete = user?.id === document.preparerId && !isDeleted
 
@@ -821,6 +874,16 @@ export default function DocumentDetail({
           </div>
 
           <div className="flex gap-2 w-full lg:w-auto flex-shrink-0 flex-wrap">
+            {canSkipStep && (
+              <button
+                type="button"
+                onClick={openSkipModal}
+                className="flex-1 lg:flex-none inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 text-xs sm:text-sm font-medium hover:bg-amber-100"
+              >
+                <SkipForward size={15} />
+                Skip Current Step
+              </button>
+            )}
             {canDelete && (
               <button
                 type="button"
@@ -1001,18 +1064,58 @@ export default function DocumentDetail({
             <button
               type="button"
               onClick={closeRevisionModal}
-              disabled={revisionLoading}
-              className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg disabled:opacity-50"
+              className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={handleConfirmRevision}
-              disabled={revisionLoading}
-              className="px-4 py-2 text-sm font-semibold text-white bg-violet-600 hover:bg-violet-700 rounded-lg disabled:opacity-50"
+              className="px-4 py-2 text-sm font-semibold text-white bg-violet-600 hover:bg-violet-700 rounded-lg"
             >
-              {revisionLoading ? 'Submitting...' : 'Confirm'}
+              Confirm
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={skipModalOpen}
+        onClose={closeSkipModal}
+        title="Skip Current Step"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600">
+            Skip the person currently assigned to review or approve this document.
+            The reason you provide will be visible to everyone on this document.
+          </p>
+          <textarea
+            value={skipReason}
+            onChange={e => setSkipReason(e.target.value)}
+            rows={4}
+            placeholder="Reason for skipping (required)"
+            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 resize-none"
+          />
+          {skipError && (
+            <p className="text-sm text-red-600">{skipError}</p>
+          )}
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={closeSkipModal}
+              disabled={skipLoading}
+              className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmSkip}
+              disabled={skipLoading}
+              className="px-4 py-2 text-sm font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg disabled:opacity-50"
+            >
+              {skipLoading ? 'Skipping...' : 'Skip Step'}
             </button>
           </div>
         </div>

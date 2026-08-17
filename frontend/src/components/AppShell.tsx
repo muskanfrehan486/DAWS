@@ -3,8 +3,6 @@ import {
   LayoutDashboard, FileText, Clock, Upload, Bell, ClipboardList, LogOut, ChevronDown, Menu, X, Settings,
 } from 'lucide-react';
 import { useCurrentUser } from '../contexts/CurrentUserContext';
-import { useUnreadNotificationCount } from '../hooks/useNotifications';
-import { usePendingApprovalCount } from '../hooks/usePendingApprovalCount';
 import type { Page } from '../App';
 
 interface AppShellProps {
@@ -29,8 +27,6 @@ export default function AppShell({ children, activePage, onNavigate, onLogout, s
   const [profileOpen, setProfileOpen] = useState(false);
   const { user: currentUser } = useCurrentUser();
 
-  const { unreadCount: notificationUnreadCount } = useUnreadNotificationCount();
-  const { count: pendingCount } = usePendingApprovalCount();
   const isAdmin = currentUser?.role === 'ADMINISTRATOR';
   const userInitials = currentUser
     ? `${currentUser.firstName?.[0] ?? ''}${currentUser.lastName?.[0] ?? ''}`.toUpperCase()
@@ -57,8 +53,6 @@ export default function AppShell({ children, activePage, onNavigate, onLogout, s
         {NAV_ITEMS.map(item => {
           const Icon = item.icon;
           const isActive = activePage === item.id;
-          const badge = item.id === 'pending-approvals' ? pendingCount :
-                        item.id === 'notifications' ? notificationUnreadCount : 0;
           return (
             <div key={item.id}>
               {item.dividerBefore && (
@@ -70,11 +64,6 @@ export default function AppShell({ children, activePage, onNavigate, onLogout, s
               >
                 <Icon size={16} />
                 <span className="flex-1">{item.label}</span>
-                {badge > 0 && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500 text-white min-w-[18px] text-center leading-none">
-                    {badge}
-                  </span>
-                )}
               </button>
             </div>
           );
@@ -168,13 +157,10 @@ export default function AppShell({ children, activePage, onNavigate, onLogout, s
             <button
               type="button"
               onClick={() => onNavigate('notifications')}
-              className="relative w-9 h-9 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+              className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
               aria-label="Notifications"
             >
               <Bell size={17} />
-              {notificationUnreadCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-500 border-2 border-white" />
-              )}
             </button>)}
             {/* User */}
             <div className="relative">

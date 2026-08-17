@@ -1,4 +1,4 @@
-import type { User, UpdateUserPayload } from '../types/admin.ts'
+import type { User, UpdateUserPayload, BulkUserImportResult } from '../types/admin.ts'
 import { authHeaders } from './authApi.ts'
 import { parseApiError } from '../utils/apiError'
 
@@ -78,4 +78,34 @@ export async function deleteUser(id: string) {
   }
 
   return res.json() as Promise<{ message: string }>
+}
+
+export function downloadUserImportTemplate() {
+  const headers = ['firstName', 'lastName', 'email', 'password', 'department', 'role']
+  const example = ['Jane', 'Smith', 'jane@company.com', 'password123', 'Human Resources', 'USER']
+  const csv = `\uFEFF${[headers.join(','), example.join(',')].join('\r\n')}`
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = 'user-import-template.csv'
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+export async function bulkCreateUsers(file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const res = await fetch('/api/admin/users/bulk', {
+    method: 'POST',
+    headers: { ...authHeaders() },
+    body: formData,
+  })
+
+  if (!res.ok) {
+    throw new Error(await parseApiError(res))
+  }
+
+  return res.json() as Promise<BulkUserImportResult>
 }

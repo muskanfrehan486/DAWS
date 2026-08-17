@@ -32,6 +32,21 @@ export async function requestRevision(documentId: string, comment: string) {
   return res.json()
 }
 
+export async function skipWorkflowStep(documentId: string, reason: string) {
+  const res = await fetch(`/api/documents/${documentId}/skip-step`, {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason: reason.trim() }),
+  })
+
+  if (!res.ok) {
+    throw new Error(await parseApiError(res))
+  }
+
+  invalidateDocumentsCache()
+  return res.json()
+}
+
 export interface ApproveDocumentPayload {
   signatureImage: string
   signaturePage: number

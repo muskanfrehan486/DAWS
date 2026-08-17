@@ -1,16 +1,11 @@
-import { brandGradient } from '../lib/theme.ts';
-
 export default function IdeasBrandPanel() {
   return (
-    <div
-      className="hidden xl:flex flex-1 items-center justify-center p-6"
-      style={{ background: brandGradient }}
-    >
+    <div className="hidden lg:block flex-1 relative min-h-screen overflow-hidden">
       <img
-        src="/ideas-removebg-preview.png"
-        alt="Ideas by Gul Ahmed"
-        className="w-full max-w-6xl h-auto object-contain"
+        src="/signin.png"
+        alt="Ideas by Gul Ahmed — Streamlining approvals"
+        className="absolute inset-0 h-full w-full object-cover object-center"
       />
     </div>
-  );
+  )
 }
