@@ -73,10 +73,14 @@ function NotificationCard({
   notification,
   onOpen,
   onMarkRead,
+  onDelete,
+  deleting,
 }: {
   notification: NotificationItem;
   onOpen: (documentId: string) => void;
   onMarkRead: (id: string) => void;
+  onDelete: (id: string) => void;
+  deleting?: boolean;
 }) {
   const style = notificationStyles[notification.category];
   const Icon = style.icon;
@@ -97,8 +101,23 @@ function NotificationCard({
       }`}
     >
       {!notification.isRead && (
-        <span className="absolute top-4 right-4 w-2 h-2 rounded-full bg-emerald-600" />
+        <span className="absolute top-4 right-12 w-2 h-2 rounded-full bg-emerald-600" />
       )}
+
+      <button
+        type="button"
+        onClick={() => onDelete(notification.id)}
+        disabled={deleting}
+        className="absolute top-3 right-3 w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+        aria-label="Delete notification"
+        title="Delete"
+      >
+        {deleting ? (
+          <Loader2 size={14} className="animate-spin" />
+        ) : (
+          <Trash2 size={14} />
+        )}
+      </button>
 
       <div className="p-4 sm:p-5 flex gap-3 sm:gap-4">
         <div
@@ -107,7 +126,7 @@ function NotificationCard({
           <Icon size={17} className={style.iconColor} />
         </div>
 
-        <div className="flex-1 min-w-0 pr-5">
+        <div className="flex-1 min-w-0 pr-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-3">
             <div className="flex items-center gap-2">
               <span
@@ -121,7 +140,7 @@ function NotificationCard({
               )}
             </div>
 
-            <div className="flex flex-col sm:items-end gap-0.5 sm:flex-shrink-0">
+            <div className="flex flex-col sm:items-end gap-0.5 sm:flex-shrink-0 sm:pr-2">
               <span className="text-[11px] sm:text-xs text-slate-500 font-medium">
                 {notification.relativeTime}
               </span>
@@ -135,25 +154,27 @@ function NotificationCard({
             {notification.message}
           </p>
 
-          {notification.documentId && (
-            <button
-              type="button"
-              onClick={handleOpen}
-              className="mt-2 text-xs sm:text-sm text-emerald-600 hover:text-emerald-700 font-medium transition-colors"
-            >
-              View {formatDocumentId(notification.documentId)} →
-            </button>
-          )}
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+            {notification.documentId && (
+              <button
+                type="button"
+                onClick={handleOpen}
+                className="text-xs sm:text-sm text-emerald-600 hover:text-emerald-700 font-medium transition-colors"
+              >
+                View {formatDocumentId(notification.documentId)} →
+              </button>
+            )}
 
-          {!notification.isRead && (
-            <button
-              type="button"
-              onClick={() => onMarkRead(notification.id)}
-              className="mt-2 ml-3 text-xs text-slate-500 hover:text-slate-700"
-            >
-              Mark as read
-            </button>
-          )}
+            {!notification.isRead && (
+              <button
+                type="button"
+                onClick={() => onMarkRead(notification.id)}
+                className="text-xs text-slate-500 hover:text-slate-700"
+              >
+                Mark as read
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </article>
@@ -171,10 +192,12 @@ export default function Notifications() {
     refetch,
     markAsRead,
     markAllAsRead,
+    deleteNotification,
   } = useNotifications();
 
   const [activeTab, setActiveTab] = useState<'all' | 'unread'>('all');
   const [actionError, setActionError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const filteredNotifications =
     activeTab === 'unread'
@@ -200,6 +223,20 @@ export default function Notifications() {
       setActionError(
         err instanceof Error ? err.message : 'Failed to mark as read',
       );
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    setActionError(null);
+    setDeletingId(id);
+    try {
+      await deleteNotification(id);
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : 'Failed to delete notification',
+      );
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -305,6 +342,8 @@ export default function Notifications() {
               notification={notification}
               onOpen={handleOpenDocument}
               onMarkRead={handleMarkAsRead}
+              onDelete={handleDelete}
+              deleting={deletingId === notification.id}
             />
           ))}
         </div>

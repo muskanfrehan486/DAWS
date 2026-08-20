@@ -6,6 +6,7 @@ import { notificationsService } from "../services/notifications.service";
 import {
   listNotificationsSchema,
   markNotificationReadSchema,
+  deleteNotificationSchema,
 } from "../schemas/notifications.schema";
 
 const router = Router();
@@ -44,6 +45,19 @@ router.patch(
       message: "Notification marked as read.",
       notification,
     });
+  })
+);
+
+router.delete(
+  "/:id",
+  validate(deleteNotificationSchema),
+  asyncHandler(async (req, res) => {
+    const result = await notificationsService.deleteNotification(
+      req.params.id as string,
+      req.supabaseUserId!
+    );
+
+    res.json(result);
   })
 );
 

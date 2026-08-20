@@ -61,3 +61,17 @@ export async function markNotificationAsRead(notificationId: string) {
 export async function markAllNotificationsAsRead(notificationIds: string[]) {
   await Promise.all(notificationIds.map(id => markNotificationAsRead(id)))
 }
+
+export async function deleteNotification(notificationId: string) {
+  const res = await fetch(`/api/notifications/${notificationId}`, {
+    method: 'DELETE',
+    headers: { ...authHeaders() },
+  })
+
+  if (!res.ok) {
+    throw new Error(await parseApiError(res))
+  }
+
+  invalidateUnreadNotificationsCache()
+  return res.json() as Promise<{ message: string }>
+}

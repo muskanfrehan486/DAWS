@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
+  deleteNotification as deleteNotificationRequest,
   fetchNotifications,
   fetchUnreadNotificationsCached,
   invalidateUnreadNotificationsCache,
@@ -89,6 +90,18 @@ export function useNotifications() {
     }
   }, [notifications])
 
+  const deleteNotification = useCallback(async (notificationId: string) => {
+    const previous = notifications
+    setNotifications(prev => prev.filter(n => n.id !== notificationId))
+
+    try {
+      await deleteNotificationRequest(notificationId)
+    } catch {
+      setNotifications(previous)
+      throw new Error('Failed to delete notification')
+    }
+  }, [notifications])
+
   return {
     notifications,
     unreadCount,
@@ -98,6 +111,7 @@ export function useNotifications() {
     refetch: load,
     markAsRead,
     markAllAsRead,
+    deleteNotification,
   }
 }
 

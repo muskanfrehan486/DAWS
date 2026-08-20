@@ -16,3 +16,9 @@ export const markNotificationReadSchema = z.object({
     id: z.string().uuid("Invalid notification id"),
   }),
 });
+
+export const deleteNotificationSchema = z.object({
+  params: z.object({
+    id: z.string().uuid("Invalid notification id"),
+  }),
+});

@@ -67,6 +67,26 @@ class NotificationsService {
       },
     });
   }
+
+  async deleteNotification(notificationId: string, userId: string) {
+    const notification = await prisma.notification.findUnique({
+      where: { id: notificationId },
+    });
+
+    if (!notification) {
+      throw errors.notFound("Notification not found.");
+    }
+
+    if (notification.recipientId !== userId) {
+      throw errors.forbidden("You cannot delete this notification.");
+    }
+
+    await prisma.notification.delete({
+      where: { id: notificationId },
+    });
+
+    return { message: "Notification deleted successfully." };
+  }
 }
 
 export const notificationsService = new NotificationsService();
