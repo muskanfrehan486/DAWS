@@ -160,8 +160,8 @@ export default function SignApproveModal({
   }
 
   const placementHint = signatureMode === 'saved'
-    ? 'Drag your saved signature onto the document, or click to place it'
-    : 'Click on the document where you want to place your signature'
+    ? 'Drag or click to place your signature, then drag the corner handles to resize'
+    : 'Click to place your signature, then drag the corner handles to resize'
 
   return (
     <div
@@ -213,6 +213,7 @@ export default function SignApproveModal({
                   <ol className="text-xs text-slate-500 space-y-1.5 list-decimal list-inside">
                     <li>Choose to draw or use your saved signature</li>
                     <li>Click or drag your signature onto the PDF</li>
+                    <li>Drag the corner handles to resize</li>
                     <li>Confirm to approve the document</li>
                   </ol>
                 </div>
@@ -244,6 +245,10 @@ export default function SignApproveModal({
                     <p>
                       <span className="font-medium text-slate-700">Position:</span>{' '}
                       x {Math.round(placement.signatureX)}, y {Math.round(placement.signatureY)}
+                    </p>
+                    <p>
+                      <span className="font-medium text-slate-700">Size:</span>{' '}
+                      {Math.round(placement.signatureWidth)} × {Math.round(placement.signatureHeight)}
                     </p>
                   </div>
                 )}

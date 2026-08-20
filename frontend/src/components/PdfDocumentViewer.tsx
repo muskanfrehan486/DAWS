@@ -5,7 +5,10 @@ import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import {
   clickToPdfPlacement,
   pdfPlacementToScreen,
+  resizePdfPlacement,
+  screenPointToPdf,
   type PdfPlacement,
+  type ResizeHandle,
   type ScreenPlacement,
 } from '../utils/pdfCoordinates'
 
@@ -28,6 +31,17 @@ interface PdfDocumentViewerProps {
   placementHint?: string
 }
 
+const RESIZE_HANDLES: {
+  id: ResizeHandle
+  className: string
+  cursor: string
+}[] = [
+  { id: 'nw', className: 'left-0 top-0 -translate-x-1/2 -translate-y-1/2', cursor: 'nwse-resize' },
+  { id: 'ne', className: 'right-0 top-0 translate-x-1/2 -translate-y-1/2', cursor: 'nesw-resize' },
+  { id: 'sw', className: 'left-0 bottom-0 -translate-x-1/2 translate-y-1/2', cursor: 'nesw-resize' },
+  { id: 'se', className: 'right-0 bottom-0 translate-x-1/2 translate-y-1/2', cursor: 'nwse-resize' },
+]
+
 export default function PdfDocumentViewer({
   file,
   placementMode = false,
@@ -46,6 +60,36 @@ export default function PdfDocumentViewer({
   const [pdfDoc, setPdfDoc] = useState<pdfjs.PDFDocumentProxy | null>(null)
   const [screenPlacement, setScreenPlacement] = useState<ScreenPlacement | null>(null)
   const metricsRef = useRef<PdfPageMetrics | null>(null)
+  const placementRef = useRef<PdfPlacement | null>(placement)
+  const renderTaskRef = useRef<pdfjs.RenderTask | null>(null)
+  const resizeSessionRef = useRef<{
+    handle: ResizeHandle
+    pointerId: number
+  } | null>(null)
+
+  useEffect(() => {
+    placementRef.current = placement
+  }, [placement])
+
+  // Keep the overlay in sync when placement changes — do NOT re-render the PDF canvas.
+  useEffect(() => {
+    const metrics = metricsRef.current
+    if (!metrics) return
+
+    if (placement && placement.page === currentPage) {
+      setScreenPlacement(
+        pdfPlacementToScreen(
+          placement,
+          metrics.displayWidth,
+          metrics.displayHeight,
+          metrics.pdfWidth,
+          metrics.pdfHeight,
+        ),
+      )
+    } else {
+      setScreenPlacement(null)
+    }
+  }, [placement, currentPage])
 
   useEffect(() => {
     if (!file) {
@@ -87,6 +131,9 @@ export default function PdfDocumentViewer({
     const container = containerRef.current
     if (!canvas || !container || !pdfDoc) return
 
+    renderTaskRef.current?.cancel()
+    renderTaskRef.current = null
+
     const page = await pdfDoc.getPage(currentPage)
     const baseViewport = page.getViewport({ scale: 1 })
     const containerWidth = container.clientWidth
@@ -103,7 +150,23 @@ export default function PdfDocumentViewer({
     if (!ctx) return
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    await page.render({ canvasContext: ctx, viewport, canvas }).promise
+
+    const task = page.render({ canvasContext: ctx, viewport, canvas })
+    renderTaskRef.current = task
+
+    try {
+      await task.promise
+    } catch (err) {
+      // Cancelled renders throw; ignore those so resize/page changes don't show an error.
+      if ((err as { name?: string } | null)?.name === 'RenderingCancelledException') {
+        return
+      }
+      throw err
+    } finally {
+      if (renderTaskRef.current === task) {
+        renderTaskRef.current = null
+      }
+    }
 
     const metrics: PdfPageMetrics = {
       pdfWidth: baseViewport.width,
@@ -113,29 +176,39 @@ export default function PdfDocumentViewer({
     }
     metricsRef.current = metrics
 
-    if (placement && placement.page === currentPage) {
-      setScreenPlacement(pdfPlacementToScreen(
-        placement,
-        metrics.displayWidth,
-        metrics.displayHeight,
-        metrics.pdfWidth,
-        metrics.pdfHeight,
-      ))
+    const currentPlacement = placementRef.current
+    if (currentPlacement && currentPlacement.page === currentPage) {
+      setScreenPlacement(
+        pdfPlacementToScreen(
+          currentPlacement,
+          metrics.displayWidth,
+          metrics.displayHeight,
+          metrics.pdfWidth,
+          metrics.pdfHeight,
+        ),
+      )
     } else {
       setScreenPlacement(null)
     }
-  }, [pdfDoc, currentPage, placement])
+  }, [pdfDoc, currentPage])
 
   useEffect(() => {
-    renderPage().catch(() => setError('Failed to render page'))
+    let cancelled = false
+    renderPage().catch(() => {
+      if (!cancelled) setError('Failed to render page')
+    })
+    return () => {
+      cancelled = true
+      renderTaskRef.current?.cancel()
+    }
   }, [renderPage])
 
   useEffect(() => {
-    const handleResize = () => {
+    const handleWindowResize = () => {
       renderPage().catch(() => undefined)
     }
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
+    window.addEventListener('resize', handleWindowResize)
+    return () => window.removeEventListener('resize', handleWindowResize)
   }, [renderPage])
 
   const placeSignatureAtPoint = (
@@ -173,6 +246,7 @@ export default function PdfDocumentViewer({
   }
 
   const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    if (resizeSessionRef.current) return
     placeSignatureAtPoint(event.clientX, event.clientY)
   }
 
@@ -189,6 +263,94 @@ export default function PdfDocumentViewer({
     event.preventDefault()
     placeSignatureAtPoint(event.clientX, event.clientY)
   }
+
+  const applyResizeFromClientPoint = useCallback((
+    handle: ResizeHandle,
+    clientX: number,
+    clientY: number,
+  ) => {
+    const current = placementRef.current
+    const metrics = metricsRef.current
+    const canvas = canvasRef.current
+    if (!current || !metrics || !canvas || !onPlacement) return
+
+    const rect = canvas.getBoundingClientRect()
+    const { x, y } = screenPointToPdf(
+      clientX - rect.left,
+      clientY - rect.top,
+      metrics.displayWidth,
+      metrics.displayHeight,
+      metrics.pdfWidth,
+      metrics.pdfHeight,
+    )
+
+    const next = resizePdfPlacement(
+      current,
+      handle,
+      x,
+      y,
+      metrics.pdfWidth,
+      metrics.pdfHeight,
+      true,
+    )
+
+    placementRef.current = next
+    onPlacement(next, metrics)
+    setScreenPlacement(pdfPlacementToScreen(
+      next,
+      metrics.displayWidth,
+      metrics.displayHeight,
+      metrics.pdfWidth,
+      metrics.pdfHeight,
+    ))
+  }, [onPlacement])
+
+  const endResizeSession = useCallback(() => {
+    resizeSessionRef.current = null
+    document.body.style.userSelect = ''
+    document.body.style.touchAction = ''
+  }, [])
+
+  const handleResizePointerDown = (
+    event: React.PointerEvent<HTMLButtonElement>,
+    handle: ResizeHandle,
+  ) => {
+    if (!placementMode || !placement) return
+    event.preventDefault()
+    event.stopPropagation()
+
+    const pointerId = event.pointerId
+    resizeSessionRef.current = { handle, pointerId }
+    document.body.style.userSelect = 'none'
+    document.body.style.touchAction = 'none'
+
+    const onMove = (moveEvent: PointerEvent) => {
+      const session = resizeSessionRef.current
+      if (!session || session.pointerId !== moveEvent.pointerId) return
+      moveEvent.preventDefault()
+      applyResizeFromClientPoint(session.handle, moveEvent.clientX, moveEvent.clientY)
+    }
+
+    const onUp = (upEvent: PointerEvent) => {
+      const session = resizeSessionRef.current
+      if (!session || session.pointerId !== upEvent.pointerId) return
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+      endResizeSession()
+    }
+
+    window.addEventListener('pointermove', onMove, { passive: false })
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+  }
+
+  // Clean up if the viewer unmounts mid-drag.
+  useEffect(() => {
+    return () => {
+      endResizeSession()
+    }
+  }, [endResizeSession])
 
   if (!file) {
     return (
@@ -245,7 +407,8 @@ export default function PdfDocumentViewer({
 
       {placementMode && (
         <p className="mb-2 text-xs text-emerald-600 font-medium">
-          {placementHint ?? 'Click on the document where you want to place your signature'}
+          {placementHint
+            ?? 'Click to place your signature, then drag the corners to resize'}
         </p>
       )}
 
@@ -263,21 +426,39 @@ export default function PdfDocumentViewer({
           />
           {screenPlacement && placement?.page === currentPage && (
             <div
-              className="absolute border-2 border-emerald-500 bg-emerald-50/40 pointer-events-none overflow-hidden"
+              className={`absolute border-2 border-emerald-500 bg-emerald-50/40 overflow-visible ${
+                placementMode ? 'pointer-events-auto' : 'pointer-events-none'
+              }`}
               style={{
                 left: screenPlacement.left,
                 top: screenPlacement.top,
                 width: screenPlacement.width,
                 height: screenPlacement.height,
               }}
+              onClick={event => event.stopPropagation()}
+              onPointerDown={event => event.stopPropagation()}
             >
               {signaturePreviewUrl && (
                 <img
                   src={signaturePreviewUrl}
                   alt="Signature preview"
-                  className="w-full h-full object-contain"
+                  className="w-full h-full object-contain pointer-events-none select-none"
+                  draggable={false}
                 />
               )}
+              {placementMode &&
+                RESIZE_HANDLES.map(handle => (
+                  <button
+                    key={handle.id}
+                    type="button"
+                    aria-label={`Resize signature ${handle.id}`}
+                    className={`absolute z-20 flex items-center justify-center w-11 h-11 sm:w-7 sm:h-7 touch-none select-none ${handle.className}`}
+                    style={{ cursor: handle.cursor, touchAction: 'none' }}
+                    onPointerDown={event => handleResizePointerDown(event, handle.id)}
+                  >
+                    <span className="block w-3.5 h-3.5 sm:w-3 sm:h-3 rounded-sm bg-white border-2 border-emerald-600 shadow-sm pointer-events-none" />
+                  </button>
+                ))}
             </div>
           )}
         </div>
