@@ -1,158 +1,58 @@
-import { useEffect, useState } from 'react';
-import LoginPage from './pages/LoginPage';
-import { getAuthToken, restoreSession, setAuthToken } from './services/authApi.ts';
-import Administration from './pages/AdminPage';
-import AppShell from './components/AppShell.tsx';
-import type { UserRole } from './types/user.ts';
-import DocumentPage from './pages/DocumentPage.tsx';
-import PendingApproval from './pages/PendingApproval.tsx';
-import SubmitDocument from './pages/SubmitDocument.tsx';
-import Notifications from './pages/Notifications.tsx';
-import AuditTrail from './pages/AuditPage.tsx';
-import DocumentDetail from './pages/DocDetailPage.tsx';
-import { CurrentUserProvider, type CurrentUser } from './contexts/CurrentUserContext.tsx';
+import { Navigate, Route, Routes } from 'react-router-dom'
+import { AuthProvider } from './contexts/AuthContext'
+import { AppLayout, AdminOnly, HomeRedirect } from './components/AppLayout'
+import { ProtectedRoute, PublicOnlyRoute } from './components/RouteGuards'
+import LoginPage from './pages/LoginPage'
+import Administration from './pages/AdminPage'
+import DocumentPage from './pages/DocumentPage'
+import PendingApproval from './pages/PendingApproval'
+import SubmitDocument from './pages/SubmitDocument'
+import Notifications from './pages/Notifications'
+import AuditTrail from './pages/AuditPage'
+import DocumentDetail from './pages/DocDetailPage'
+import { ROUTES } from './types/routes'
 
-export type Page =
-  | 'dashboard'
-  | 'pending-approvals'
-  | 'submit-document'
-  | 'document-details'
-  | 'notifications'
-  | 'audit-trail'
-  | 'administration'
+export type { Page } from './types/routes'
 
 export default function App() {
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [authChecked, setAuthChecked] = useState(false);
-  const [activePage, setActivePage] = useState<Page>('dashboard');
-  const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
-  const [returnPage, setReturnPage] = useState<Page>('dashboard');
-  const [sessionUser, setSessionUser] = useState<CurrentUser | null>(null);
-  const [sessionKey, setSessionKey] = useState(0);
-
-  useEffect(() => {
-    if (!getAuthToken()) {
-      setAuthChecked(true);
-      return;
-    }
-
-    restoreSession()
-      .then(user => {
-        if (user) {
-          setLoggedIn(true);
-          setSessionUser(user);
-          setActivePage(user.role === 'ADMINISTRATOR' ? 'administration' : 'dashboard');
-        }
-      })
-      .finally(() => setAuthChecked(true));
-  }, []);
-
-  const handleNavigate = (page: Page) => { 
-    setActivePage(page);
-  };
-
-  const handleOpenDocument = (docId: string) => {
-    setReturnPage(activePage);
-    setSelectedDocId(docId);
-    setActivePage('document-details');
-  };
-
-  const handleCloseDocument = () => {
-    setSelectedDocId(null);
-    setActivePage(returnPage);
-  };
-
-  const handleLogin = (userRole: UserRole) => {
-    setLoggedIn(true);
-    setSessionUser(null);
-    setSessionKey(key => key + 1);
-    setActivePage(userRole === 'ADMINISTRATOR' ? 'administration' : 'dashboard');
-  };
-
-  const handleLogout = () => {
-    setAuthToken(null);
-    setLoggedIn(false);
-    setSessionUser(null);
-    setActivePage('dashboard');
-  };
-
-  if (!authChecked) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#f0f7f2' }}>
-        <p className="text-sm text-slate-500">Loading...</p>
-      </div>
-    );
-  }
-
-  if (!loggedIn) {
-    return <LoginPage onLogin={handleLogin} />;
-  }
-
-  const renderPage = () => {
-    switch (activePage) {
-      case 'administration':
-        return <Administration />;
-      case 'dashboard':
-        return (
-          <DocumentPage
-            onNavigate={handleNavigate}
-            onOpenDocument={handleOpenDocument}
-          />
-        );
-        case 'pending-approvals':
-          return (
-            <PendingApproval
-              onOpenDocument={handleOpenDocument}
-            />
-          );
-        case 'submit-document':
-          return (
-            <SubmitDocument onNavigate={handleNavigate} />
-          );
-        case 'notifications':
-          return (
-            <Notifications
-              onOpenDocument={handleOpenDocument}
-            />
-          );
-        case 'document-details':
-          if (!selectedDocId) {
-            return null;
-          }
-          return (
-            <DocumentDetail
-              documentId={selectedDocId}
-              returnPage={returnPage}
-              onNavigate={handleNavigate}
-              onBack={handleCloseDocument}
-            />
-          );
-        case 'audit-trail':
-          return (
-            <AuditTrail
-            />
-          );
-      default:
-        return (
-          <div className="flex flex-col items-center justify-center min-h-[50vh] p-6 text-center">
-            <p className="text-slate-500 text-sm">This page is coming soon.</p>
-          </div>
-        );
-    }
-  };
-
-  const showSidebar = activePage !== 'administration';
-
   return (
-    <CurrentUserProvider key={sessionKey} initialUser={sessionUser}>
-      <AppShell
-        activePage={activePage}
-        onNavigate={handleNavigate}
-        onLogout={handleLogout}
-        showSidebar={showSidebar}
-      >
-        {renderPage()}
-      </AppShell>
-    </CurrentUserProvider>
-  );
+    <AuthProvider>
+      <Routes>
+        <Route element={<PublicOnlyRoute />}>
+          <Route path={ROUTES.login} element={<LoginPage />} />
+        </Route>
+
+        <Route element={<ProtectedRoute />}>
+          <Route element={<AppLayout />}>
+            <Route index element={<HomeRedirect />} />
+            <Route path={ROUTES.dashboard} element={<DocumentPage />} />
+            <Route
+              path={ROUTES.pendingApprovals}
+              element={<PendingApproval />}
+            />
+            <Route
+              path={ROUTES.submitDocument}
+              element={<SubmitDocument />}
+            />
+            <Route
+              path={ROUTES.notifications}
+              element={<Notifications />}
+            />
+            <Route path={ROUTES.auditTrail} element={<AuditTrail />} />
+            <Route
+              path={ROUTES.administration}
+              element={
+                <AdminOnly>
+                  <Administration />
+                </AdminOnly>
+              }
+            />
+            <Route path="/documents/:id" element={<DocumentDetail />} />
+          </Route>
+        </Route>
+
+        <Route path="*" element={<Navigate to={ROUTES.home} replace />} />
+      </Routes>
+    </AuthProvider>
+  )
 }

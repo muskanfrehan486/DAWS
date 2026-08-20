@@ -9,9 +9,11 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useNotifications } from '../hooks/useNotifications';
 import { formatDocumentId } from '../utils/format';
 import type { NotificationItem, NotificationUiCategory } from '../types/notification';
+import { ROUTES } from '../types/routes';
 
 const notificationStyles: Record<
   NotificationUiCategory,
@@ -158,11 +160,8 @@ function NotificationCard({
   );
 }
 
-export default function Notifications({
-  onOpenDocument,
-}: {
-  onOpenDocument?: (documentId: string) => void;
-}) {
+export default function Notifications() {
+  const navigate = useNavigate();
   const {
     notifications,
     unreadCount,
@@ -205,7 +204,7 @@ export default function Notifications({
   };
 
   const handleOpenDocument = (documentId: string) => {
-    onOpenDocument?.(documentId);
+    navigate(ROUTES.document(documentId));
   };
 
   if (loading) {
