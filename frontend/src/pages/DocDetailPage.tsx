@@ -15,6 +15,7 @@ import {
   Trash2,
   Upload,
   User,
+  XCircle,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -28,7 +29,7 @@ import SignApproveModal from '../components/SignApproveModal'
 import StatusBadge from '../components/StatusBadge'
 import { useCurrentUser } from '../contexts/CurrentUserContext'
 import { useDocumentDetail } from '../hooks/useDocumentDetail'
-import { requestRevision, skipWorkflowStep } from '../services/approvalApi'
+import { rejectDocument, requestRevision, skipWorkflowStep } from '../services/approvalApi'
 import { downloadDocumentAuditCsv } from '../services/auditApi'
 import { fetchDocumentFile, resubmitDocument } from '../services/documentDetailApi'
 import { deleteDocument } from '../services/documentsApi'
@@ -269,6 +270,7 @@ function DocumentPreview({
   pendingActionType,
   onSignClick,
   onRequestRevision,
+  onReject,
   onResubmit,
   onDownload,
 }: {
@@ -282,6 +284,7 @@ function DocumentPreview({
   pendingActionType?: string | null
   onSignClick?: () => void
   onRequestRevision?: () => void
+  onReject?: () => void
   onResubmit?: (file: File) => void
   onDownload?: () => void
 }) {
@@ -399,6 +402,16 @@ function DocumentPreview({
             >
               <RotateCcw size={15} />
               Request Revision
+            </button>
+          )}
+          {canApprove && onReject && (
+            <button
+              type="button"
+              onClick={onReject}
+              className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg border border-red-200 bg-red-50 text-red-700 text-xs sm:text-sm font-medium hover:bg-red-100"
+            >
+              <XCircle size={15} />
+              Reject
             </button>
           )}
           {canResubmit && onResubmit && (
@@ -651,6 +664,10 @@ export default function DocumentDetail() {
   const [revisionModalOpen, setRevisionModalOpen] = useState(false)
   const [revisionComment, setRevisionComment] = useState('')
   const [revisionError, setRevisionError] = useState<string | null>(null)
+  const [rejectModalOpen, setRejectModalOpen] = useState(false)
+  const [rejectComment, setRejectComment] = useState('')
+  const [rejectError, setRejectError] = useState<string | null>(null)
+  const [rejectLoading, setRejectLoading] = useState(false)
   const [skipModalOpen, setSkipModalOpen] = useState(false)
   const [skipReason, setSkipReason] = useState('')
   const [skipError, setSkipError] = useState<string | null>(null)
@@ -726,6 +743,35 @@ export default function DocumentDetail() {
     } catch (err) {
       setRevisionError(err instanceof Error ? err.message : 'Request failed')
       setRevisionModalOpen(true)
+    }
+  }
+
+  const openRejectModal = () => {
+    setRejectComment('')
+    setRejectError(null)
+    setRejectModalOpen(true)
+  }
+
+  const closeRejectModal = () => {
+    if (rejectLoading) return
+    setRejectModalOpen(false)
+    setRejectComment('')
+    setRejectError(null)
+  }
+
+  const handleConfirmReject = async () => {
+    setRejectLoading(true)
+    setRejectError(null)
+
+    try {
+      await rejectDocument(documentId, rejectComment.trim() || undefined)
+      setRejectModalOpen(false)
+      setRejectComment('')
+      goBack()
+    } catch (err) {
+      setRejectError(err instanceof Error ? err.message : 'Reject failed')
+    } finally {
+      setRejectLoading(false)
     }
   }
 
@@ -1048,6 +1094,7 @@ export default function DocumentDetail() {
                 pendingActionType={pendingActionType}
                 onSignClick={() => setSignModalOpen(true)}
                 onRequestRevision={openRevisionModal}
+                onReject={openRejectModal}
                 onResubmit={handleResubmit}
                 onDownload={isDeleted ? undefined : handleDownload}
               />
@@ -1155,6 +1202,49 @@ export default function DocumentDetail() {
               className="px-4 py-2 text-sm font-semibold text-white bg-violet-600 hover:bg-violet-700 rounded-lg"
             >
               Confirm
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={rejectModalOpen}
+        onClose={closeRejectModal}
+        title="Reject Document"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600">
+            Rejecting ends the approval workflow. You can optionally explain why.
+          </p>
+          <textarea
+            value={rejectComment}
+            onChange={e => setRejectComment(e.target.value)}
+            rows={4}
+            placeholder="Rejection reason (optional)"
+            disabled={rejectLoading}
+            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100 resize-none disabled:opacity-60"
+          />
+          {rejectError && (
+            <p className="text-sm text-red-600">{rejectError}</p>
+          )}
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={closeRejectModal}
+              disabled={rejectLoading}
+              className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmReject}
+              disabled={rejectLoading}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg disabled:opacity-50"
+            >
+              {rejectLoading && <Loader2 size={14} className="animate-spin" />}
+              Reject Document
             </button>
           </div>
         </div>
