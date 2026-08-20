@@ -17,7 +17,8 @@ import {
   User,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import type { Page } from '../App'
+import { useNavigate, useParams } from 'react-router-dom'
+import { ROUTES } from '../types/routes'
 import Modal from '../components/Modal'
 import PdfDocumentViewer from '../components/PdfDocumentViewer'
 import SignApproveModal from '../components/SignApproveModal'
@@ -37,16 +38,6 @@ import type {
 import { formatDocumentId } from '../utils/format'
 
 type Tab = 'overview' | 'workflow' | 'comments' | 'audit'
-
-const returnPageLabels: Record<Page, string> = {
-  dashboard: 'Dashboard',
-  'pending-approvals': 'Pending Approvals',
-  'submit-document': 'Submit Document',
-  'document-details': 'Document',
-  notifications: 'Notifications',
-  'audit-trail': 'Audit Trail',
-  administration: 'Administration',
-}
 
 function Avatar({
   initials,
@@ -648,17 +639,10 @@ function AuditHistoryTab({
   )
 }
 
-export default function DocumentDetail({
-  documentId,
-  returnPage,
-  onNavigate,
-  onBack,
-}: {
-  documentId: string
-  returnPage: Page
-  onNavigate: (page: Page) => void
-  onBack: () => void
-}) {
+export default function DocumentDetail() {
+  const { id: documentIdParam } = useParams<{ id: string }>()
+  const documentId = documentIdParam ?? ''
+  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<Tab>('overview')
   const [signModalOpen, setSignModalOpen] = useState(false)
   const [revisionModalOpen, setRevisionModalOpen] = useState(false)
@@ -677,9 +661,35 @@ export default function DocumentDetail({
   const { data, loading, error, commentLoading, refetch, addComment } =
     useDocumentDetail(documentId)
 
+  if (!documentId) {
+    return (
+      <main className="w-full max-w-[1400px] mx-auto px-3 sm:px-5 lg:px-6 py-16">
+        <div className="max-w-md mx-auto text-center">
+          <AlertCircle size={40} className="mx-auto text-red-400 mb-3" />
+          <h2 className="text-lg font-semibold text-slate-900 mb-2">Document not found</h2>
+          <button
+            type="button"
+            onClick={() => navigate(ROUTES.dashboard)}
+            className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700"
+          >
+            Go to Dashboard
+          </button>
+        </div>
+      </main>
+    )
+  }
+
+  const goBack = () => {
+    if (window.history.state && window.history.state.idx > 0) {
+      navigate(-1)
+    } else {
+      navigate(ROUTES.dashboard)
+    }
+  }
+
   const handleApproveSuccess = () => {
     setSignModalOpen(false)
-    onBack()
+    goBack()
   }
 
   const openRevisionModal = () => {
@@ -707,7 +717,7 @@ export default function DocumentDetail({
 
     try {
       await requestRevision(documentId, comment)
-      onBack()
+      goBack()
     } catch (err) {
       setRevisionError(err instanceof Error ? err.message : 'Request failed')
       setRevisionModalOpen(true)
@@ -822,7 +832,7 @@ export default function DocumentDetail({
           <div className="flex items-center justify-center gap-3">
             <button
               type="button"
-              onClick={onBack}
+              onClick={goBack}
               className="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50"
             >
               Go back
@@ -849,14 +859,14 @@ export default function DocumentDetail({
       <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap mb-4 sm:mb-5 text-xs sm:text-sm">
         <button
           type="button"
-          onClick={() => onNavigate('dashboard')}
+          onClick={() => navigate(ROUTES.dashboard)}
           className="text-slate-400 hover:text-emerald-600"
         >
           Dashboard
         </button>
         <span className="text-slate-300">/</span>
-        <button type="button" onClick={onBack} className="text-slate-400 hover:text-emerald-600">
-          {returnPageLabels[returnPage]}
+        <button type="button" onClick={goBack} className="text-slate-400 hover:text-emerald-600">
+          Back
         </button>
         <span className="text-slate-300">/</span>
         <span className="text-slate-800 font-medium">{formatDocumentId(documentId)}</span>

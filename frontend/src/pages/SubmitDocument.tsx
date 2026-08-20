@@ -20,7 +20,8 @@ import {
   validateSubmitDocumentForm,
   type ApprovalStepForm,
 } from '../utils/submitDocument';
-import type { Page } from '../App';
+import { useNavigate } from 'react-router-dom';
+import { ROUTES } from '../types/routes';
 
 function createEmptyStep(): ApprovalStepForm {
   return {
@@ -30,11 +31,8 @@ function createEmptyStep(): ApprovalStepForm {
   };
 }
 
-export default function SubmitDocument({
-  onNavigate,
-}: {
-  onNavigate: (page: Page) => void;
-}) {
+export default function SubmitDocument() {
+  const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { users, loading: usersLoading, error: usersError, refetch } =
     useAssignableUsers();
@@ -117,7 +115,7 @@ export default function SubmitDocument({
         approvalChain: toApprovalChainPayload(steps),
       });
 
-      onNavigate('dashboard');
+      navigate(ROUTES.dashboard);
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Failed to submit document');
     } finally {
@@ -172,7 +170,7 @@ export default function SubmitDocument({
         ">
           <span
             className="text-slate-400 cursor-pointer hover:text-slate-600"
-            onClick={() => onNavigate('dashboard')}
+            onClick={() => navigate(ROUTES.dashboard)}
           >
             Dashboard
           </span>
@@ -963,7 +961,7 @@ export default function SubmitDocument({
 
           <button
             type="button"
-            onClick={() => onNavigate('dashboard')}
+            onClick={() => navigate(ROUTES.dashboard)}
             disabled={submitting}
             className="
               w-full

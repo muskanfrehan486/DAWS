@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   ArrowRight,
   Eye,
@@ -8,12 +9,9 @@ import {
   Mail,
 } from 'lucide-react'
 import { login } from '../services/authApi.ts'
-import type { UserRole } from '../types/user.ts'
 import IdeasBrandPanel from '../components/IdeasBrandPanel.tsx'
-
-interface LoginPageProps {
-  onLogin: (role: UserRole) => void
-}
+import { useAuth } from '../contexts/AuthContext'
+import { ROUTES } from '../types/routes'
 
 function GoogleIcon() {
   return (
@@ -38,7 +36,9 @@ function GoogleIcon() {
   )
 }
 
-export default function LoginPage({ onLogin }: LoginPageProps) {
+export default function LoginPage() {
+  const navigate = useNavigate()
+  const { login: completeLogin } = useAuth()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPw, setShowPw] = useState(false)
@@ -59,7 +59,8 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
     try {
       const result = await login(username, password)
-      onLogin(result.user.role)
+      completeLogin(result.user.role)
+      navigate(ROUTES.home, { replace: true })
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Unable to sign in.')
     } finally {

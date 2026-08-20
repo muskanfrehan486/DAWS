@@ -19,8 +19,9 @@ import {
   filterDocuments,
   type DocumentStatusFilter,
 } from '../utils/documentFilters';
-import type { Page } from '../App.tsx';
 import type { DashboardDocument, DocumentStatus } from '../types/document';
+import { useNavigate } from 'react-router-dom';
+import { ROUTES } from '../types/routes';
 
 const FILE_ICONS: Record<string, { bg: string; label: string }> = {
   pdf: { bg: '#ef4444', label: 'PDF' },
@@ -272,13 +273,8 @@ function MobileDocumentCard({
   );
 }
 
-export default function MyDocuments({
-  onNavigate,
-  onOpenDocument,
-}: {
-  onNavigate: (page: Page) => void;
-  onOpenDocument: (id: string) => void;
-}) {
+export default function MyDocuments() {
+  const navigate = useNavigate();
   const { documents, loading, error, refetch } = useDocuments();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('all');
@@ -761,7 +757,7 @@ export default function MyDocuments({
             {documents.length === 0 ? (
               <button
                 type="button"
-                onClick={() => onNavigate('submit-document')}
+                onClick={() => navigate(ROUTES.submitDocument)}
                 className="
                   mt-4
                   text-xs
@@ -797,7 +793,7 @@ export default function MyDocuments({
               <MobileDocumentCard
                 key={doc.id}
                 doc={doc}
-                onOpen={onOpenDocument}
+                onOpen={id => navigate(ROUTES.document(id))}
               />
             ))}
           </div>
@@ -877,7 +873,7 @@ export default function MyDocuments({
                           <button
                             type="button"
                             onClick={() =>
-                              onOpenDocument(doc.id)
+                              navigate(ROUTES.document(doc.id))
                             }
                             className="
                               font-medium

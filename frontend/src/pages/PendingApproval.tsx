@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Eye,
   CheckCircle,
@@ -14,6 +15,7 @@ import { usePendingApprovals } from '../hooks/usePendingApprovals';
 import { rejectDocument, requestRevision } from '../services/approvalApi';
 import { formatDocumentId, formatWaitingDuration } from '../utils/format';
 import type { DashboardDocument } from '../types/document';
+import { ROUTES } from '../types/routes';
 
 type ActionType = 'reject' | 'revision';
 
@@ -164,11 +166,8 @@ function PendingDocumentCard({
   );
 }
 
-export default function PendingApprovals({
-  onOpenDocument,
-}: {
-  onOpenDocument: (id: string) => void;
-}) {
+export default function PendingApprovals() {
+  const navigate = useNavigate();
   const { documents, loading, error, refetch } = usePendingApprovals();
   const [activeAction, setActiveAction] = useState<{
     type: ActionType;
@@ -225,7 +224,7 @@ export default function PendingApprovals({
   };
 
   const handleApprove = (id: string) => {
-    onOpenDocument(id);
+    navigate(ROUTES.document(id));
   };
 
   if (loading) {
@@ -283,7 +282,7 @@ export default function PendingApprovals({
             <PendingDocumentCard
               key={document.id}
               document={document}
-              onOpen={onOpenDocument}
+              onOpen={id => navigate(ROUTES.document(id))}
               onApprove={handleApprove}
               onReject={id => openActionModal('reject', id)}
               onRevision={id => openActionModal('revision', id)}
