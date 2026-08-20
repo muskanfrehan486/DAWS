@@ -120,25 +120,6 @@ function DocumentActions({
         View
       </button>
 
-      <button
-        type="button"
-        onClick={onOpen}
-        className="
-          flex items-center gap-1.5
-          px-2.5 py-1.5
-          rounded-lg
-          text-xs
-          font-medium
-          text-slate-600
-          hover:bg-slate-100
-          active:bg-slate-200
-          transition-colors
-        "
-      >
-        <GitBranch size={13} />
-        Track
-      </button>
-
       <DownloadDocumentButton
         documentId={doc.id}
         versionNumber={doc.versionNumber}
