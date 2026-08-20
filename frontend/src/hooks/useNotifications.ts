@@ -117,6 +117,16 @@ export function useUnreadNotificationCount() {
     load()
   }, [load])
 
+  useEffect(() => {
+    const onChanged = () => {
+      void load(true)
+    }
+    window.addEventListener('daws:unread-notifications-changed', onChanged)
+    return () => {
+      window.removeEventListener('daws:unread-notifications-changed', onChanged)
+    }
+  }, [load])
+
   const refetch = useCallback(() => {
     invalidateUnreadNotificationsCache()
     return load(true)

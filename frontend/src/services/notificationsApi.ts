@@ -39,6 +39,9 @@ export function fetchUnreadNotificationsCached(
 
 export function invalidateUnreadNotificationsCache(): void {
   unreadNotificationsCache.invalidate()
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('daws:unread-notifications-changed'))
+  }
 }
 
 export async function markNotificationAsRead(notificationId: string) {
