@@ -14,6 +14,7 @@ import {
   Settings,
 } from 'lucide-react'
 import { useCurrentUser } from '../contexts/CurrentUserContext'
+import { useUnreadNotificationCount } from '../hooks/useNotifications'
 import { NAV_PATHS, ROUTES, type AppPage } from '../types/routes'
 
 interface AppShellProps {
@@ -49,6 +50,7 @@ export default function AppShell({
   const [profileOpen, setProfileOpen] = useState(false)
   const { user: currentUser } = useCurrentUser()
   const navigate = useNavigate()
+  const { unreadCount } = useUnreadNotificationCount()
 
   const isAdmin = currentUser?.role === 'ADMINISTRATOR'
   const userInitials = currentUser
@@ -186,10 +188,19 @@ export default function AppShell({
             {showSidebar && (
               <NavLink
                 to={ROUTES.notifications}
-                className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
-                aria-label="Notifications"
+                className="relative w-9 h-9 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                aria-label={
+                  unreadCount > 0
+                    ? `Notifications, ${unreadCount} unread`
+                    : 'Notifications'
+                }
               >
                 <Bell size={17} />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold leading-4 text-center tabular-nums">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
               </NavLink>
             )}
             <div className="relative">

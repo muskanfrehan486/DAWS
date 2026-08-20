@@ -289,7 +289,7 @@ export default function Notifications() {
                 : 'text-slate-500 hover:text-slate-700'
             }`}
           >
-            Unread
+            Unread ({unreadCount})
             {activeTab === 'unread' && (
               <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-600" />
             )}
