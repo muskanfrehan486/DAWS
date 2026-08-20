@@ -11,7 +11,6 @@ import {
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useNotifications } from '../hooks/useNotifications';
-import { formatDocumentId } from '../utils/format';
 import type { NotificationItem, NotificationUiCategory } from '../types/notification';
 import { ROUTES } from '../types/routes';
 
@@ -84,8 +83,9 @@ function NotificationCard({
 }) {
   const style = notificationStyles[notification.category];
   const Icon = style.icon;
+  const canOpenDocument = Boolean(notification.documentId);
 
-  const handleOpen = () => {
+  const handleCardClick = () => {
     if (!notification.isRead) {
       onMarkRead(notification.id);
     }
@@ -96,19 +96,26 @@ function NotificationCard({
 
   return (
     <article
-      className={`relative bg-white border rounded-xl shadow-sm hover:shadow-md transition-shadow overflow-hidden ${
+      className={`relative bg-white border rounded-xl shadow-sm overflow-hidden transition-shadow ${
         notification.isRead ? 'border-slate-200' : 'border-emerald-200'
+      } ${
+        canOpenDocument
+          ? 'hover:shadow-md hover:border-emerald-300 cursor-pointer'
+          : ''
       }`}
     >
       {!notification.isRead && (
-        <span className="absolute top-4 right-12 w-2 h-2 rounded-full bg-emerald-600" />
+        <span className="absolute top-4 right-12 w-2 h-2 rounded-full bg-emerald-600 pointer-events-none" />
       )}
 
       <button
         type="button"
-        onClick={() => onDelete(notification.id)}
+        onClick={event => {
+          event.stopPropagation();
+          onDelete(notification.id);
+        }}
         disabled={deleting}
-        className="absolute top-3 right-3 w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+        className="absolute top-3 right-3 z-10 w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
         aria-label="Delete notification"
         title="Delete"
       >
@@ -119,7 +126,19 @@ function NotificationCard({
         )}
       </button>
 
-      <div className="p-4 sm:p-5 flex gap-3 sm:gap-4">
+      <button
+        type="button"
+        onClick={handleCardClick}
+        disabled={!canOpenDocument}
+        className={`w-full text-left p-4 sm:p-5 flex gap-3 sm:gap-4 ${
+          canOpenDocument ? '' : 'cursor-default'
+        }`}
+        aria-label={
+          canOpenDocument
+            ? `Open document for notification: ${notification.title}`
+            : notification.title
+        }
+      >
         <div
           className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl ${style.iconBg} flex items-center justify-center flex-shrink-0`}
         >
@@ -153,30 +172,8 @@ function NotificationCard({
           <p className="mt-2 text-xs sm:text-sm leading-relaxed text-slate-700">
             {notification.message}
           </p>
-
-          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-            {notification.documentId && (
-              <button
-                type="button"
-                onClick={handleOpen}
-                className="text-xs sm:text-sm text-emerald-600 hover:text-emerald-700 font-medium transition-colors"
-              >
-                View {formatDocumentId(notification.documentId)} →
-              </button>
-            )}
-
-            {!notification.isRead && (
-              <button
-                type="button"
-                onClick={() => onMarkRead(notification.id)}
-                className="text-xs text-slate-500 hover:text-slate-700"
-              >
-                Mark as read
-              </button>
-            )}
-          </div>
         </div>
-      </div>
+      </button>
     </article>
   );
 }
@@ -193,6 +190,7 @@ export default function Notifications() {
     markAsRead,
     markAllAsRead,
     deleteNotification,
+    deleteAllNotifications,
   } = useNotifications();
 
   const [activeTab, setActiveTab] = useState<'all' | 'unread'>('all');
@@ -240,6 +238,23 @@ export default function Notifications() {
     }
   };
 
+  const handleDeleteAll = async () => {
+    if (notifications.length === 0) return;
+    const confirmed = window.confirm(
+      `Delete all ${notifications.length} notification${notifications.length === 1 ? '' : 's'}? This cannot be undone.`,
+    );
+    if (!confirmed) return;
+
+    setActionError(null);
+    try {
+      await deleteAllNotifications();
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : 'Failed to delete all notifications',
+      );
+    }
+  };
+
   const handleOpenDocument = (documentId: string) => {
     navigate(ROUTES.document(documentId));
   };
@@ -281,19 +296,30 @@ export default function Notifications() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={handleMarkAllAsRead}
-          disabled={unreadCount === 0 || actionLoading}
-          className="self-start inline-flex items-center justify-center gap-2 min-h-[38px] px-3 sm:px-4 rounded-lg border border-emerald-200 bg-emerald-50/30 text-emerald-600 text-xs sm:text-sm font-medium hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {actionLoading ? (
-            <Loader2 size={15} className="animate-spin" />
-          ) : (
-            <Check size={15} />
-          )}
-          Mark all as read
-        </button>
+        <div className="flex flex-wrap items-center gap-2 self-start">
+          <button
+            type="button"
+            onClick={handleMarkAllAsRead}
+            disabled={unreadCount === 0 || actionLoading}
+            className="inline-flex items-center justify-center gap-2 min-h-[38px] px-3 sm:px-4 rounded-lg border border-emerald-200 bg-emerald-50/30 text-emerald-600 text-xs sm:text-sm font-medium hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {actionLoading ? (
+              <Loader2 size={15} className="animate-spin" />
+            ) : (
+              <Check size={15} />
+            )}
+            Mark all as read
+          </button>
+          <button
+            type="button"
+            onClick={handleDeleteAll}
+            disabled={notifications.length === 0 || actionLoading}
+            className="inline-flex items-center justify-center gap-2 min-h-[38px] px-3 sm:px-4 rounded-lg border border-red-200 bg-red-50/30 text-red-600 text-xs sm:text-sm font-medium hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <Trash2 size={15} />
+            Delete all
+          </button>
+        </div>
       </div>
 
       {actionError && (

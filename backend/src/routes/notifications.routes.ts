@@ -49,6 +49,17 @@ router.patch(
 );
 
 router.delete(
+  "/",
+  asyncHandler(async (req, res) => {
+    const result = await notificationsService.deleteAllNotifications(
+      req.supabaseUserId!
+    );
+
+    res.json(result);
+  })
+);
+
+router.delete(
   "/:id",
   validate(deleteNotificationSchema),
   asyncHandler(async (req, res) => {

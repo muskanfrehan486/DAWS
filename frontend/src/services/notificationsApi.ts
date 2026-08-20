@@ -75,3 +75,17 @@ export async function deleteNotification(notificationId: string) {
   invalidateUnreadNotificationsCache()
   return res.json() as Promise<{ message: string }>
 }
+
+export async function deleteAllNotifications() {
+  const res = await fetch('/api/notifications', {
+    method: 'DELETE',
+    headers: { ...authHeaders() },
+  })
+
+  if (!res.ok) {
+    throw new Error(await parseApiError(res))
+  }
+
+  invalidateUnreadNotificationsCache()
+  return res.json() as Promise<{ message: string; deletedCount: number }>
+}

@@ -16,6 +16,15 @@ import { formatDisplayDate } from './format'
 import { formatFullName, getInitials } from './user'
 
 function resolveCurrentHolder(document: ApiDocumentDetail): string {
+  if (document.status === 'APPROVED') {
+    return 'Completed'
+  }
+  if (document.status === 'REJECTED') {
+    return 'Rejected'
+  }
+  if (document.status === 'DELETED') {
+    return 'Deleted'
+  }
   if (
     document.status !== 'REVISION_REQUESTED' &&
     document.currentStep?.assignedUser
@@ -130,6 +139,10 @@ export function buildDocumentDetailView(
 function buildPreparerStep(document: ApiDocumentDetail): WorkflowStepView {
   const submitted = Boolean(document.submittedAt)
   const needsRevision = document.status === 'REVISION_REQUESTED'
+  const isTerminal =
+    document.status === 'APPROVED' ||
+    document.status === 'REJECTED' ||
+    document.status === 'DELETED'
   const submittedDate = document.submittedAt ?? document.createdAt
 
   return {
@@ -145,7 +158,11 @@ function buildPreparerStep(document: ApiDocumentDetail): WorkflowStepView {
       document.preparer.lastName,
     ),
     date: formatDisplayDate(submittedDate),
-    status: needsRevision ? 'current' : submitted ? 'completed' : 'current',
+    status: needsRevision
+      ? 'current'
+      : submitted || isTerminal
+        ? 'completed'
+        : 'current',
   }
 }
 
@@ -154,6 +171,7 @@ export function buildWorkflowSteps(
   workflow: ApiWorkflowResponse,
 ): WorkflowStepView[] {
   const preparerStep = buildPreparerStep(document)
+  const isFullyApproved = workflow.documentStatus === 'APPROVED'
   const chainSteps = (workflow.workflow ?? []).map(step => ({
     id: `${workflow.documentId}-${step.stepOrder}`,
     step: step.stepOrder + 1,
@@ -167,7 +185,9 @@ export function buildWorkflowSteps(
       step.assignedUser.lastName,
     ),
     date: step.actedAt ? formatDisplayDate(step.actedAt) : undefined,
-    status: mapWorkflowStepStatus(step.status),
+    status: isFullyApproved
+      ? ('completed' as const)
+      : mapWorkflowStepStatus(step.status),
     comment: step.comment,
   }))
 
@@ -178,6 +198,14 @@ export function buildWorkflowSummary(
   workflow: ApiWorkflowResponse,
   steps: WorkflowStepView[],
 ): string {
+  if (workflow.documentStatus === 'APPROVED') {
+    return `Document fully approved. All ${steps.length} workflow steps are complete.`
+  }
+
+  if (workflow.documentStatus === 'REJECTED') {
+    return 'Document was rejected. The approval workflow has ended.'
+  }
+
   if (workflow.documentStatus === 'REVISION_REQUESTED') {
     const preparerStep = steps.find(step => step.type === 'Preparer')
     return `Revision requested. ${preparerStep?.user ?? 'The preparer'} must upload a revised document and resubmit for review.`
@@ -185,7 +213,7 @@ export function buildWorkflowSummary(
 
   if (workflow.documentStatus === 'DELETED') {
     const preparerStep = steps.find(step => step.type === 'Preparer')
-    return `Document deleted. ${preparerStep?.user ?? 'The preparer'} can upload a new PDF to restart the same approval workflow.`
+    return `Document deleted. ${preparerStep?.user ?? 'The preparer'} can upload a new PDF to restart the same approval chain.`
   }
 
   const total = steps.length

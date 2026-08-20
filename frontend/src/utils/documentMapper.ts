@@ -36,6 +36,15 @@ export function mapApiStatusToUi(
 }
 
 function resolveCurrentHolder(document: ApiDocument): string {
+  if (document.status === 'APPROVED') {
+    return 'Completed'
+  }
+  if (document.status === 'REJECTED') {
+    return 'Rejected'
+  }
+  if (document.status === 'DELETED') {
+    return 'Deleted'
+  }
   if (
     document.status !== 'REVISION_REQUESTED' &&
     document.currentStep?.assignedUser

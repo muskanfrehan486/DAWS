@@ -101,24 +101,44 @@ class WorkflowService {
     }
 
     const actions = document.currentWorkflowRun?.actions ?? [];
+    const isFullyApproved =
+      document.status === "APPROVED" ||
+      document.currentWorkflowRun?.status === "APPROVED";
+    const isRejected =
+      document.status === "REJECTED" ||
+      document.currentWorkflowRun?.status === "REJECTED";
 
     const workflow = document.approvalChain?.steps.map((step) => {
       const action = actions.find((a) => a.chainStepId === step.id);
+
+      let status: string;
+      if (action) {
+        status = action.action;
+      } else if (isFullyApproved) {
+        // Final approval completed the run; treat every chain step as done
+        // even if an older action record is missing for display purposes.
+        status = "APPROVE";
+      } else if (
+        document.currentWorkflowRun?.status === "IN_PROGRESS" &&
+        step.stepOrder === document.currentWorkflowRun.currentStepOrder
+      ) {
+        status = "PENDING";
+      } else if (
+        isRejected &&
+        document.currentWorkflowRun &&
+        step.stepOrder < document.currentWorkflowRun.currentStepOrder
+      ) {
+        status = "APPROVE";
+      } else {
+        status = "WAITING";
+      }
 
       return {
         stepOrder: step.stepOrder,
         approvalType: step.approvalType,
         assignedUser: step.assignedUser,
-
-        status: action
-          ? action.action
-          : document.currentWorkflowRun?.status === "IN_PROGRESS" &&
-              step.stepOrder === document.currentWorkflowRun.currentStepOrder
-            ? "PENDING"
-            : "WAITING",
-
+        status,
         actedAt: action?.createdAt ?? null,
-
         comment: action?.comment ?? null,
       };
     });
@@ -127,8 +147,11 @@ class WorkflowService {
       documentId: document.id,
       documentStatus: document.status,
       workflowStatus: document.currentWorkflowRun?.status ?? null,
-      currentStepOrder:
-        document.currentWorkflowRun?.currentStepOrder ?? null,
+      currentStepOrder: isFullyApproved
+        ? (document.approvalChain?.steps.length ??
+          document.currentWorkflowRun?.currentStepOrder ??
+          null)
+        : (document.currentWorkflowRun?.currentStepOrder ?? null),
       workflow,
     };
   }
