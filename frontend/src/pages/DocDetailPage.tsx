@@ -21,6 +21,9 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ROUTES } from '../types/routes'
 import Modal from '../components/Modal'
 import PdfDocumentViewer from '../components/PdfDocumentViewer'
+import PreparerSignModal, {
+  type PreparerSignaturePayload,
+} from '../components/PreparerSignModal'
 import SignApproveModal from '../components/SignApproveModal'
 import StatusBadge from '../components/StatusBadge'
 import { useCurrentUser } from '../contexts/CurrentUserContext'
@@ -355,7 +358,7 @@ function DocumentPreview({
                 ) : (
                   <Upload size={15} />
                 )}
-                {resubmitLoading ? 'Uploading...' : 'Upload New Document'}
+                {resubmitLoading ? 'Uploading...' : 'Upload, Sign & Resubmit'}
               </button>
             </div>
           )}
@@ -422,7 +425,7 @@ function DocumentPreview({
                 ) : (
                   <Upload size={15} />
                 )}
-                {resubmitLoading ? 'Uploading...' : 'Upload & Resubmit'}
+                {resubmitLoading ? 'Uploading...' : 'Upload, Sign & Resubmit'}
               </button>
             </>
           )}
@@ -654,6 +657,8 @@ export default function DocumentDetail() {
   const [skipLoading, setSkipLoading] = useState(false)
   const [resubmitLoading, setResubmitLoading] = useState(false)
   const [resubmitError, setResubmitError] = useState<string | null>(null)
+  const [resubmitFile, setResubmitFile] = useState<File | null>(null)
+  const [preparerSignOpen, setPreparerSignOpen] = useState(false)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -772,8 +777,19 @@ export default function DocumentDetail() {
     }
   }
 
-  const handleResubmit = async (file: File) => {
+  const handleResubmit = (file: File) => {
     if (!file.name.toLowerCase().endsWith('.pdf')) {
+      setResubmitError('Please upload a PDF file.')
+      return
+    }
+
+    setResubmitError(null)
+    setResubmitFile(file)
+    setPreparerSignOpen(true)
+  }
+
+  const handleSignedResubmit = async (signature: PreparerSignaturePayload) => {
+    if (!resubmitFile) {
       setResubmitError('Please upload a PDF file.')
       return
     }
@@ -782,10 +798,14 @@ export default function DocumentDetail() {
     setResubmitError(null)
 
     try {
-      await resubmitDocument(documentId, file)
+      await resubmitDocument(documentId, resubmitFile, signature)
+      setPreparerSignOpen(false)
+      setResubmitFile(null)
       await refetch()
     } catch (err) {
-      setResubmitError(err instanceof Error ? err.message : 'Resubmit failed')
+      const message = err instanceof Error ? err.message : 'Resubmit failed'
+      setResubmitError(message)
+      throw err
     } finally {
       setResubmitLoading(false)
     }
@@ -1084,6 +1104,21 @@ export default function DocumentDetail() {
         documentTitle={document.title}
         onClose={() => setSignModalOpen(false)}
         onSuccess={handleApproveSuccess}
+      />
+
+      <PreparerSignModal
+        open={preparerSignOpen}
+        pdfFile={resubmitFile}
+        documentTitle={document.title}
+        confirmLabel="Sign & Resubmit"
+        submitting={resubmitLoading}
+        onClose={() => {
+          if (!resubmitLoading) {
+            setPreparerSignOpen(false)
+            setResubmitFile(null)
+          }
+        }}
+        onConfirm={handleSignedResubmit}
       />
 
       <Modal

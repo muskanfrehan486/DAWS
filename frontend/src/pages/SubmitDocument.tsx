@@ -22,6 +22,9 @@ import {
 } from '../utils/submitDocument';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '../types/routes';
+import PreparerSignModal, {
+  type PreparerSignaturePayload,
+} from '../components/PreparerSignModal';
 
 function createEmptyStep(): ApprovalStepForm {
   return {
@@ -43,6 +46,7 @@ export default function SubmitDocument() {
   const [fileError, setFileError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [signModalOpen, setSignModalOpen] = useState(false);
 
   const [steps, setSteps] = useState<ApprovalStepForm[]>([createEmptyStep()]);
   
@@ -96,7 +100,7 @@ export default function SubmitDocument() {
       }
     };
   
-  const handleSubmit = async () => {
+  const handleOpenSignStep = () => {
     setSubmitError(null);
 
     const validationError = validateSubmitDocumentForm({ title, file, steps });
@@ -105,7 +109,12 @@ export default function SubmitDocument() {
       return;
     }
 
+    setSignModalOpen(true);
+  };
+
+  const handleSignedSubmit = async (signature: PreparerSignaturePayload) => {
     setSubmitting(true);
+    setSubmitError(null);
 
     try {
       await createDocument({
@@ -113,11 +122,16 @@ export default function SubmitDocument() {
         description,
         file: file!,
         approvalChain: toApprovalChainPayload(steps),
+        signature,
       });
 
+      setSignModalOpen(false);
       navigate(ROUTES.dashboard);
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Failed to submit document');
+      const message =
+        err instanceof Error ? err.message : 'Failed to submit document';
+      setSubmitError(message);
+      throw err;
     } finally {
       setSubmitting(false);
     }
@@ -201,8 +215,8 @@ export default function SubmitDocument() {
             text-slate-500
             mt-1
           ">
-            Upload a document and define the approval chain
-            before submitting for review.
+            Upload a document, define the approval chain, and sign
+            before it enters the workflow.
           </p>
         </div>
   
@@ -928,7 +942,7 @@ export default function SubmitDocument() {
         ">
           <button
             type="button"
-            onClick={handleSubmit}
+            onClick={handleOpenSignStep}
             disabled={submitting}
             className="
               w-full
@@ -951,12 +965,8 @@ export default function SubmitDocument() {
               disabled:cursor-not-allowed
             "
           >
-            {submitting ? (
-              <Loader2 size={15} className="animate-spin" />
-            ) : (
-              <Upload size={15} />
-            )}
-            {submitting ? 'Submitting...' : 'Submit for Approval'}
+            <Upload size={15} />
+            Sign &amp; Submit for Approval
           </button>
 
           <button
@@ -980,6 +990,17 @@ export default function SubmitDocument() {
             Cancel
           </button>
         </div>
+
+        <PreparerSignModal
+          open={signModalOpen}
+          pdfFile={file}
+          documentTitle={title.trim() || 'Untitled document'}
+          submitting={submitting}
+          onClose={() => {
+            if (!submitting) setSignModalOpen(false)
+          }}
+          onConfirm={handleSignedSubmit}
+        />
       </main>
     );
   }
