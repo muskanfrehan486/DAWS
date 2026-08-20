@@ -13,9 +13,20 @@ export interface ApprovalChainStepInput {
   approvalType: ApiApprovalType
 }
 
+export interface PreparerSignatureInput {
+  useSavedSignature?: boolean
+  signatureImage?: string
+  signaturePage: number
+  signatureX: number
+  signatureY: number
+  signatureWidth: number
+  signatureHeight: number
+}
+
 export interface CreateDocumentInput {
   title: string
   description?: string
   file: File
   approvalChain: ApprovalChainStepInput[]
+  signature: PreparerSignatureInput
 }

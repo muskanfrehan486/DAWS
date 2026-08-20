@@ -71,9 +71,12 @@ router.post(
       if (req.body.approvalChain) {
         req.body.approvalChain = JSON.parse(req.body.approvalChain);
       }
+      if (req.body.signature) {
+        req.body.signature = JSON.parse(req.body.signature);
+      }
       next();
     } catch {
-      next(new Error("Invalid approvalChain JSON"));
+      next(new Error("Invalid approvalChain or signature JSON"));
     }
   },
   validate(createDocumentSchema),
@@ -112,9 +115,12 @@ router.patch(
       if (req.body.approvalChain) {
         req.body.approvalChain = JSON.parse(req.body.approvalChain);
       }
+      if (req.body.signature) {
+        req.body.signature = JSON.parse(req.body.signature);
+      }
       next();
     } catch {
-      next(new Error("Invalid approvalChain JSON"));
+      next(new Error("Invalid approvalChain or signature JSON"));
     }
   },
   validate(updateDocumentSchema),

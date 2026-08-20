@@ -1,5 +1,5 @@
 import type { DocumentsListResponse } from '../types/document'
-import type { CreateDocumentInput } from '../types/submitDocument'
+import type { CreateDocumentInput, PreparerSignatureInput } from '../types/submitDocument'
 import { authHeaders } from './authApi'
 import { parseApiError } from '../utils/apiError'
 import { createCachedRequest } from '../utils/requestCache'
@@ -58,6 +58,7 @@ export async function createDocument(input: CreateDocumentInput) {
 
   formData.append('file', input.file)
   formData.append('approvalChain', JSON.stringify(input.approvalChain))
+  formData.append('signature', JSON.stringify(input.signature))
 
   const res = await fetch('/api/documents', {
     method: 'POST',
@@ -86,4 +87,6 @@ export async function deleteDocument(documentId: string) {
   invalidateDocumentsCache()
   return res.json() as Promise<{ message: string }>
 }
+
+export type { PreparerSignatureInput }
 

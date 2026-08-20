@@ -98,9 +98,19 @@ export async function fetchDocumentFile(documentId: string): Promise<Blob> {
 export async function resubmitDocument(
   documentId: string,
   file: File,
+  signature: {
+    useSavedSignature?: boolean
+    signatureImage?: string
+    signaturePage: number
+    signatureX: number
+    signatureY: number
+    signatureWidth: number
+    signatureHeight: number
+  },
 ): Promise<void> {
   const formData = new FormData()
   formData.append('file', file)
+  formData.append('signature', JSON.stringify(signature))
 
   const res = await fetch(`/api/documents/${documentId}`, {
     method: 'PATCH',

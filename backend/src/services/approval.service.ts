@@ -1,6 +1,9 @@
-import { PDFDocument } from "pdf-lib";
 import { prisma } from "../prisma";
 import { errors } from "../lib/errors";
+import {
+  decodeSignatureImage,
+  embedSignatureInPdf,
+} from "../lib/pdfSignature";
 import { storageService } from "../lib/supabase.storage";
 import { auditService } from "./audit.service";
 import { notificationsService } from "./notifications.service";
@@ -43,11 +46,6 @@ class ApprovalService {
         comment: comment.trim(),
       },
     });
-  }
-
-  private decodeSignatureImage(signatureImage: string): Buffer {
-    const base64 = signatureImage.replace(/^data:image\/\w+;base64,/, "");
-    return Buffer.from(base64, "base64");
   }
 
   private async loadAndValidateCurrentStep(
@@ -247,42 +245,6 @@ class ApprovalService {
     });
   }
 
-  private async embedSignatureInPdf(
-    pdfBuffer: Buffer,
-    signatureBuffer: Buffer,
-    input: ApproveDocumentInput
-  ): Promise<Buffer> {
-    const pdfDoc = await PDFDocument.load(pdfBuffer);
-    const pages = pdfDoc.getPages();
-
-    if (input.signaturePage < 1 || input.signaturePage > pages.length) {
-      throw errors.badRequest("Invalid signature page number.");
-    }
-
-    const page = pages[input.signaturePage - 1];
-    const { height: pageHeight } = page.getSize();
-
-    let image;
-    try {
-      image = await pdfDoc.embedPng(signatureBuffer);
-    } catch {
-      image = await pdfDoc.embedJpg(signatureBuffer);
-    }
-
-    // Frontend coordinates are top-left origin; pdf-lib uses bottom-left origin.
-    const pdfY = pageHeight - input.signatureY - input.signatureHeight;
-
-    page.drawImage(image, {
-      x: input.signatureX,
-      y: pdfY,
-      width: input.signatureWidth,
-      height: input.signatureHeight,
-    });
-
-    const signedPdfBytes = await pdfDoc.save();
-    return Buffer.from(signedPdfBytes);
-  }
-
   private buildUplineRecipientIds(
     preparerId: string,
     steps: ApprovalChainStep[],
@@ -351,8 +313,8 @@ class ApprovalService {
     const pdfBuffer = await storageService.downloadDocument(storagePath);
     const signatureBuffer = input.useSavedSignature
       ? (await usersService.getSignature(actorId)).buffer
-      : this.decodeSignatureImage(input.signatureImage!);
-    const signedPdfBuffer = await this.embedSignatureInPdf(
+      : decodeSignatureImage(input.signatureImage!);
+    const signedPdfBuffer = await embedSignatureInPdf(
       pdfBuffer,
       signatureBuffer,
       input

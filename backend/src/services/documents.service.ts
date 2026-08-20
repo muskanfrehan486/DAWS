@@ -1,12 +1,18 @@
 import { randomUUID } from "crypto";
 import { prisma } from "../prisma";
 import { errors } from "../lib/errors";
+import {
+  decodeSignatureImage,
+  embedSignatureInPdf,
+} from "../lib/pdfSignature";
 import { storageService } from "../lib/supabase.storage";
 import { ApprovalType } from "../generated/prisma/client";
 import { notificationsService } from "./notifications.service";
 import { auditService } from "./audit.service";
+import { usersService } from "./users.service";
 import {
   CreateDocumentInput,
+  PreparerSignatureInput,
   UpdateDocumentInput,
 } from "../schemas/documents.schema";
 import {
@@ -16,18 +22,40 @@ import {
 } from "../lib/documentAccess";
 
 class DocumentsService {
+  private async stampPreparerSignature(
+    pdfBuffer: Buffer,
+    userId: string,
+    signature: PreparerSignatureInput
+  ): Promise<Buffer> {
+    const signatureBuffer = signature.useSavedSignature
+      ? (await usersService.getSignature(userId)).buffer
+      : decodeSignatureImage(signature.signatureImage!);
+
+    return embedSignatureInPdf(pdfBuffer, signatureBuffer, signature);
+  }
+
   async createDocument(
     input: CreateDocumentInput,
     file: Express.Multer.File,
     userId: string
   ) {
-    const { title, description, approvalChain } = input;
+    const { title, description, approvalChain, signature } = input;
     const documentId = randomUUID();
     const versionNumber = 1;
     const storagePath = `documents/${documentId}/v${versionNumber}.pdf`;
 
-    // Upload PDF first
-    await storageService.uploadDocument(storagePath, file);
+    const signedBuffer = await this.stampPreparerSignature(
+      file.buffer,
+      userId,
+      signature
+    );
+    const signedFile: Express.Multer.File = {
+      ...file,
+      buffer: signedBuffer,
+    };
+
+    // Upload signed PDF first
+    await storageService.uploadDocument(storagePath, signedFile);
 
     try {
       // Make sure every assigned user exists
@@ -116,6 +144,8 @@ class DocumentsService {
             status: "PENDING_REVIEW",
             versionNumber,
             workflowRunId: workflowRun.id,
+            preparerSigned: true,
+            signaturePage: signature.signaturePage,
           },
           tx,
         });
@@ -545,7 +575,7 @@ class DocumentsService {
   file: Express.Multer.File | undefined,
   userId: string
 ) {
-  const { title, description, approvalChain } = input;
+  const { title, description, approvalChain, signature } = input;
 
   const document = await prisma.document.findUnique({
     where: { id: documentId },
@@ -588,7 +618,17 @@ class DocumentsService {
   const versionNumber = currentVersion.versionNumber + 1;
   const storagePath = `documents/${documentId}/v${versionNumber}.pdf`;
 
-  await storageService.uploadDocument(storagePath, file);
+  const signedBuffer = await this.stampPreparerSignature(
+    file.buffer,
+    userId,
+    signature
+  );
+  const signedFile: Express.Multer.File = {
+    ...file,
+    buffer: signedBuffer,
+  };
+
+  await storageService.uploadDocument(storagePath, signedFile);
 
   try {
     const previousStatus = document.status;
@@ -689,6 +729,8 @@ class DocumentsService {
           status: "PENDING_REVIEW",
           versionNumber,
           workflowRunId: workflowRun.id,
+          preparerSigned: true,
+          signaturePage: signature.signaturePage,
         },
         tx,
       });
