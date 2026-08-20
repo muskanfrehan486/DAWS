@@ -87,7 +87,8 @@ export function useDocumentDetail(documentId: string) {
           : null,
         canResubmit:
           document.preparerId === user.id &&
-          workflow.documentStatus === 'REVISION_REQUESTED',
+          (workflow.documentStatus === 'REVISION_REQUESTED' ||
+            workflow.documentStatus === 'DELETED'),
         canSkipStep:
           document.preparerId === user.id &&
           workflow.documentStatus === 'PENDING_REVIEW' &&

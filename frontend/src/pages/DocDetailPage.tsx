@@ -335,9 +335,39 @@ function DocumentPreview({
             Document deleted by preparer
           </h2>
           <p className="mt-2 text-xs sm:text-sm text-slate-500 max-w-md mx-auto">
-            The preparer removed this document and its files. The workflow has
-            stopped, but the record remains visible for audit purposes.
+            The previous file was removed. The record and approval log remain for audit.
+            {canResubmit
+              ? ' Upload a new PDF to restart the same approval workflow.'
+              : ''}
           </p>
+          {canResubmit && onResubmit && (
+            <div className="mt-5 flex flex-col items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/pdf,.pdf"
+                className="hidden"
+                onChange={event => {
+                  const file = event.target.files?.[0]
+                  if (file) onResubmit(file)
+                  event.target.value = ''
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={resubmitLoading}
+                className="inline-flex items-center justify-center gap-2 h-10 px-5 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-60"
+              >
+                {resubmitLoading ? (
+                  <Loader2 size={15} className="animate-spin" />
+                ) : (
+                  <Upload size={15} />
+                )}
+                {resubmitLoading ? 'Uploading...' : 'Upload New Document'}
+              </button>
+            </div>
+          )}
         </div>
       </section>
     )
@@ -926,8 +956,14 @@ export default function DocumentDetail({
         <section className="bg-slate-50 border border-slate-200 rounded-xl p-4 sm:p-5 mb-4">
           <p className="text-sm font-medium text-slate-900">Document deleted by preparer</p>
           <p className="mt-1 text-xs sm:text-sm text-slate-600">
-            The preparer removed this document. The workflow has stopped and the file is no longer available.
+            The workflow has stopped and the previous file is no longer available.
+            {canResubmit
+              ? ' Upload a new PDF below to restart the same approval chain. Prior actions remain in the approval log.'
+              : ' The preparer can upload a new PDF later to restart the same approval chain.'}
           </p>
+          {canResubmit && resubmitError && (
+            <p className="mt-2 text-sm text-red-600">{resubmitError}</p>
+          )}
         </section>
       )}
 
@@ -977,13 +1013,13 @@ export default function DocumentDetail({
                 versionNumber={document.versionNumber}
                 isDeleted={isDeleted}
                 canApprove={canApprove && !isDeleted}
-                canResubmit={canResubmit && !isDeleted}
+                canResubmit={canResubmit}
                 resubmitLoading={resubmitLoading}
                 pendingActionType={pendingActionType}
                 onSignClick={() => setSignModalOpen(true)}
                 onRequestRevision={openRevisionModal}
                 onResubmit={handleResubmit}
-                onDownload={handleDownload}
+                onDownload={isDeleted ? undefined : handleDownload}
               />
             </div>
           </div>
@@ -1129,8 +1165,10 @@ export default function DocumentDetail({
       >
         <div className="space-y-4">
           <p className="text-sm text-slate-600">
-            This will permanently remove the document files and stop the workflow.
-            Everyone with access will still see that you deleted it.
+            This will remove the document files and stop the workflow.
+            Everyone with access will still see that you deleted it, and the
+            approval log is kept. You can upload a new PDF on this document later
+            to restart the same approval chain.
           </p>
           {deleteError && (
             <p className="text-sm text-red-600">{deleteError}</p>

@@ -78,7 +78,10 @@ class WorkflowService {
       throw errors.forbidden("Access denied.");
     }
 
-    if (document.status === "REVISION_REQUESTED") {
+    if (
+      document.status === "REVISION_REQUESTED" ||
+      document.status === "DELETED"
+    ) {
       const workflow = document.approvalChain?.steps.map((step) => ({
         stepOrder: step.stepOrder,
         approvalType: step.approvalType,

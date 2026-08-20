@@ -563,16 +563,17 @@ class DocumentsService {
   if (document.preparerId !== userId) {
     throw errors.forbidden("Only the document preparer can update the document.");
   }
-  if (document.status === "DELETED") {
-    throw errors.badRequest("Deleted documents cannot be updated.");
-  }
-  if (document.status !== "REVISION_REQUESTED") {
+
+  const canResubmitRevision = document.status === "REVISION_REQUESTED";
+  const canResubmitAfterDelete = document.status === "DELETED";
+
+  if (!canResubmitRevision && !canResubmitAfterDelete) {
     throw errors.badRequest(
-      "Document can only be resubmitted when a revision has been requested."
+      "Document can only be resubmitted after a revision request or after it was deleted by the preparer."
     );
   }
   if (!file) {
-    throw errors.badRequest("A revised PDF is required to resubmit the document.");
+    throw errors.badRequest("A PDF is required to resubmit the document.");
   }
 
   const currentVersion = await prisma.documentVersion.findFirst({
@@ -590,11 +591,17 @@ class DocumentsService {
   await storageService.uploadDocument(storagePath, file);
 
   try {
+    const previousStatus = document.status;
+
     const result = await prisma.$transaction(async (tx) => {
       const updateData: Record<string, unknown> = {
         status: "PENDING_REVIEW",
         revisionRequestedByActionId: null,
         currentVersionNumber: versionNumber,
+        deletedAt: null,
+        approvedAt: null,
+        rejectedAt: null,
+        submittedAt: new Date(),
       };
 
       if (title !== undefined) updateData.title = title;
@@ -677,7 +684,7 @@ class DocumentsService {
         action: "DOCUMENT_SUBMITTED",
         entityType: "Document",
         entityId: documentId,
-        oldValue: { status: "REVISION_REQUESTED" },
+        oldValue: { status: previousStatus },
         newValue: {
           status: "PENDING_REVIEW",
           versionNumber,
@@ -699,16 +706,20 @@ class DocumentsService {
         workflowRunId: workflowRun.id,
         documentTitle: (title ?? document.title) as string,
         firstStep: chainSteps[0] ?? null,
+        previousStatus,
       };
     });
 
     if (result.firstStep) {
       const isReview = result.firstStep.approvalType === ApprovalType.REVIEWER;
+      const wasDeleted = result.previousStatus === "DELETED";
       await notificationsService.createNotification({
         recipientId: result.firstStep.assignedUserId,
         type: "APPROVAL_NEEDED",
         title: isReview ? "Review Required" : "Approval Required",
-        message: `Revised document "${result.documentTitle}" requires your ${isReview ? "review" : "approval"}.`,
+        message: wasDeleted
+          ? `Document "${result.documentTitle}" was re-uploaded and requires your ${isReview ? "review" : "approval"}.`
+          : `Revised document "${result.documentTitle}" requires your ${isReview ? "review" : "approval"}.`,
         documentId,
         workflowRunId: result.workflowRunId,
       });

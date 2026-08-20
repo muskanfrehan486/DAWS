@@ -183,6 +183,11 @@ export function buildWorkflowSummary(
     return `Revision requested. ${preparerStep?.user ?? 'The preparer'} must upload a revised document and resubmit for review.`
   }
 
+  if (workflow.documentStatus === 'DELETED') {
+    const preparerStep = steps.find(step => step.type === 'Preparer')
+    return `Document deleted. ${preparerStep?.user ?? 'The preparer'} can upload a new PDF to restart the same approval workflow.`
+  }
+
   const total = steps.length
   const currentStep = steps.find(step => step.status === 'current')
 

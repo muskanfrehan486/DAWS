@@ -79,7 +79,10 @@ class AuditService {
         ? String((oldValue as { status?: unknown }).status)
         : null;
 
-    if (action === "DOCUMENT_SUBMITTED" && oldStatus === "REVISION_REQUESTED") {
+    if (
+      action === "DOCUMENT_SUBMITTED" &&
+      (oldStatus === "REVISION_REQUESTED" || oldStatus === "DELETED")
+    ) {
       return "DOCUMENT_RESUBMITTED";
     }
 
