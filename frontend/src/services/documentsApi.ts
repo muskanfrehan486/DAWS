@@ -60,6 +60,10 @@ export async function createDocument(input: CreateDocumentInput) {
   formData.append('approvalChain', JSON.stringify(input.approvalChain))
   formData.append('signature', JSON.stringify(input.signature))
 
+  for (const supporting of input.supportingFiles ?? []) {
+    formData.append('supportingFiles', supporting)
+  }
+
   const res = await fetch('/api/documents', {
     method: 'POST',
     headers: { ...authHeaders() },

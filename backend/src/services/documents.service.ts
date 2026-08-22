@@ -21,6 +21,19 @@ import {
   prismaDocumentAccessFilter,
 } from "../lib/documentAccess";
 
+function sanitizeFileName(fileName: string): string {
+  const base = fileName.replace(/[/\\?%*:|"<>]/g, "_").trim();
+  return base.slice(0, 200) || "attachment";
+}
+
+function supportingStoragePath(
+  documentId: string,
+  attachmentId: string,
+  fileName: string
+): string {
+  return `documents/${documentId}/supporting/${attachmentId}-${sanitizeFileName(fileName)}`;
+}
+
 class DocumentsService {
   private async stampPreparerSignature(
     pdfBuffer: Buffer,
@@ -34,10 +47,56 @@ class DocumentsService {
     return embedSignatureInPdf(pdfBuffer, signatureBuffer, signature);
   }
 
+  private async uploadSupportingFiles(
+    documentId: string,
+    userId: string,
+    files: Express.Multer.File[]
+  ): Promise<string[]> {
+    const uploadedPaths: string[] = [];
+
+    try {
+      for (const file of files) {
+        const attachmentId = randomUUID();
+        const storagePath = supportingStoragePath(
+          documentId,
+          attachmentId,
+          file.originalname
+        );
+
+        await storageService.uploadFile(
+          storagePath,
+          file.buffer,
+          file.mimetype
+        );
+        uploadedPaths.push(storagePath);
+
+        await prisma.supportingDocument.create({
+          data: {
+            id: attachmentId,
+            documentId,
+            fileName: sanitizeFileName(file.originalname),
+            contentType: file.mimetype,
+            storagePath,
+            sizeBytes: file.size,
+            uploadedById: userId,
+          },
+        });
+      }
+
+      return uploadedPaths;
+    } catch (error) {
+      for (const path of uploadedPaths) {
+        await storageService.deleteDocument(path);
+      }
+      throw error;
+    }
+  }
+
   async createDocument(
     input: CreateDocumentInput,
     file: Express.Multer.File,
-    userId: string
+    userId: string,
+    supportingFiles: Express.Multer.File[] = []
   ) {
     const { title, description, approvalChain, signature } = input;
     const documentId = randomUUID();
@@ -56,6 +115,8 @@ class DocumentsService {
 
     // Upload signed PDF first
     await storageService.uploadDocument(storagePath, signedFile);
+
+    const uploadedSupportingPaths: string[] = [];
 
     try {
       // Make sure every assigned user exists
@@ -146,6 +207,7 @@ class DocumentsService {
             workflowRunId: workflowRun.id,
             preparerSigned: true,
             signaturePage: signature.signaturePage,
+            supportingFileCount: supportingFiles.length,
           },
           tx,
         });
@@ -157,6 +219,15 @@ class DocumentsService {
           workflowRunId: workflowRun.id,
         };
       });
+
+      if (supportingFiles.length > 0) {
+        const paths = await this.uploadSupportingFiles(
+          documentId,
+          userId,
+          supportingFiles
+        );
+        uploadedSupportingPaths.push(...paths);
+      }
 
       const firstStep = approvalChain[0];
       if (firstStep) {
@@ -178,6 +249,9 @@ class DocumentsService {
     } catch (error) {
       // Roll back uploaded PDF if database transaction fails
       await storageService.deleteDocument(storagePath);
+      for (const path of uploadedSupportingPaths) {
+        await storageService.deleteDocument(path);
+      }
       throw error;
     }
   }
@@ -500,6 +574,17 @@ class DocumentsService {
             },
           },
         },
+        supportingDocuments: {
+          where: { isDeleted: false },
+          orderBy: { uploadedAt: "asc" },
+          select: {
+            id: true,
+            fileName: true,
+            contentType: true,
+            sizeBytes: true,
+            uploadedAt: true,
+          },
+        },
       },
     });
 
@@ -569,11 +654,41 @@ class DocumentsService {
     };
   }
 
+  async getSupportingDocumentFile(
+    documentId: string,
+    attachmentId: string,
+    userId: string
+  ) {
+    // Access check via document visibility
+    await this.getDocumentById(documentId, userId);
+
+    const attachment = await prisma.supportingDocument.findFirst({
+      where: {
+        id: attachmentId,
+        documentId,
+        isDeleted: false,
+      },
+    });
+
+    if (!attachment) {
+      throw errors.notFound("Supporting document not found");
+    }
+
+    const buffer = await storageService.downloadDocument(attachment.storagePath);
+
+    return {
+      buffer,
+      fileName: attachment.fileName,
+      contentType: attachment.contentType,
+    };
+  }
+
   async updateDocument(
   documentId: string,
   input: UpdateDocumentInput,
   file: Express.Multer.File | undefined,
-  userId: string
+  userId: string,
+  supportingFiles: Express.Multer.File[] = []
 ) {
   const { title, description, approvalChain, signature } = input;
 
@@ -731,6 +846,7 @@ class DocumentsService {
           workflowRunId: workflowRun.id,
           preparerSigned: true,
           signaturePage: signature.signaturePage,
+          supportingFileCount: supportingFiles.length,
         },
         tx,
       });
@@ -751,6 +867,25 @@ class DocumentsService {
         previousStatus,
       };
     });
+
+    if (supportingFiles.length > 0) {
+      const existing = await prisma.supportingDocument.findMany({
+        where: { documentId, isDeleted: false },
+        select: { id: true, storagePath: true },
+      });
+
+      if (existing.length > 0) {
+        await prisma.supportingDocument.updateMany({
+          where: { documentId, isDeleted: false },
+          data: { isDeleted: true },
+        });
+        for (const item of existing) {
+          await storageService.deleteDocument(item.storagePath);
+        }
+      }
+
+      await this.uploadSupportingFiles(documentId, userId, supportingFiles);
+    }
 
     if (result.firstStep) {
       const isReview = result.firstStep.approvalType === ApprovalType.REVIEWER;
@@ -785,6 +920,9 @@ class DocumentsService {
       where: { id: documentId },
       include: {
         versions: {
+          select: { storagePath: true },
+        },
+        supportingDocuments: {
           select: { storagePath: true },
         },
         approvalChain: {
@@ -822,6 +960,10 @@ class DocumentsService {
     const storagePaths = new Set<string>();
     for (const version of document.versions) {
       storagePaths.add(version.storagePath);
+    }
+
+    for (const attachment of document.supportingDocuments) {
+      storagePaths.add(attachment.storagePath);
     }
 
     for (const run of document.workflowRuns) {

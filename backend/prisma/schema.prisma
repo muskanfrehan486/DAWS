@@ -41,7 +41,8 @@ model User {
   notifications        Notification[]
   department           Department          @relation(fields: [departmentId], references: [id])
   documentComments DocumentComment[]
-  
+  supportingDocuments  SupportingDocument[]
+
   @@index([departmentId])
   @@index([loginRole])
   @@index([email])
@@ -71,11 +72,31 @@ model Document {
   notifications               Notification[]
   workflowRuns                WorkflowRun[]     @relation("DocumentWorkflowRuns")
   comments DocumentComment[]
+  supportingDocuments         SupportingDocument[]
 
   @@index([preparerId])
   @@index([status])
   @@index([createdAt])
   @@map("documents")
+}
+
+/// Optional attachments uploaded by the preparer (not signed as part of the approval chain).
+model SupportingDocument {
+  id           String   @id @default(uuid()) @db.Uuid
+  documentId   String   @map("document_id") @db.Uuid
+  fileName     String   @map("file_name") @db.VarChar(500)
+  contentType  String   @map("content_type") @db.VarChar(255)
+  storagePath  String   @map("storage_path")
+  sizeBytes    Int      @map("size_bytes")
+  uploadedById String   @map("uploaded_by_id") @db.Uuid
+  isDeleted    Boolean  @default(false) @map("is_deleted")
+  uploadedAt   DateTime @default(now()) @map("uploaded_at") @db.Timestamptz(6)
+  document     Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+
+  @@index([documentId, isDeleted])
+  @@index([uploadedById])
+  @@map("supporting_documents")
 }
 
 /// Immutable version record. Never update file content — new upload = new row.

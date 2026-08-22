@@ -10,6 +10,7 @@ import {
   Loader2,
   MessageSquare,
   MoreHorizontal,
+  Paperclip,
   RotateCcw,
   SkipForward,
   Trash2,
@@ -31,37 +32,43 @@ import { useCurrentUser } from '../contexts/CurrentUserContext'
 import { useDocumentDetail } from '../hooks/useDocumentDetail'
 import { rejectDocument, requestRevision, skipWorkflowStep } from '../services/approvalApi'
 import { downloadDocumentAuditCsv } from '../services/auditApi'
-import { fetchDocumentFile, resubmitDocument } from '../services/documentDetailApi'
+import {
+  downloadSupportingDocument,
+  fetchDocumentFile,
+  fetchSupportingDocumentFile,
+  resubmitDocument,
+} from '../services/documentDetailApi'
 import { deleteDocument } from '../services/documentsApi'
 import type {
   CommentView,
   DocumentAuditView,
   DocumentDetailView,
+  SupportingDocumentView,
   WorkflowStepView,
 } from '../types/documentDetail'
 import { formatDocumentId } from '../utils/format'
 
-type Tab = 'overview' | 'workflow' | 'comments' | 'audit'
-
-function Avatar({
-  initials,
+type Tab = 'overview' | 'supporting' | 'workflow' | 'comments' | 'audit'
+  
+  function Avatar({
+    initials,
   color = 'blue',
-}: {
+  }: {
   initials: string
   color?: 'blue' | 'green' | 'gray'
-}) {
-  const colors = {
+  }) {
+    const colors = {
     blue: 'bg-emerald-100 text-emerald-600',
     green: 'bg-emerald-100 text-emerald-600',
     gray: 'bg-slate-100 text-slate-500',
   }
-
-  return (
-    <div
+  
+    return (
+      <div
       className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-semibold flex-shrink-0 ${colors[color]}`}
-    >
-      {initials}
-    </div>
+      >
+        {initials}
+      </div>
   )
 }
 
@@ -74,35 +81,35 @@ function WorkflowStatusPanel({
 }) {
   const total = workflowSteps.length
   const progress = total > 0 ? (completedSteps / total) * 100 : 0
-
-  return (
+  
+    return (
     <section className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5">
-      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm sm:text-base font-semibold text-slate-900">
-          Workflow Status
-        </h2>
-        <span className="text-xs text-slate-500">
+            Workflow Status
+          </h2>
+          <span className="text-xs text-slate-500">
           {completedSteps} / {total} steps
-        </span>
-      </div>
-
-      <div className="mb-5">
-        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-          <div
+          </span>
+        </div>
+  
+        <div className="mb-5">
+          <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+            <div
             className="h-full bg-emerald-500 rounded-full transition-all"
             style={{ width: `${progress}%` }}
-          />
+            />
+          </div>
         </div>
-      </div>
-
-      <div>
-        {workflowSteps.map((step, index) => {
+  
+        <div>
+          {workflowSteps.map((step, index) => {
           const isLast = index === workflowSteps.length - 1
-
-          return (
+  
+            return (
             <div key={step.id} className="relative flex gap-3">
-              {!isLast && (
-                <div
+                {!isLast && (
+                  <div
                   className={`absolute left-[15px] top-[32px] w-px h-[calc(100%-8px)] ${
                     step.status === 'completed' || step.status === 'skipped'
                       ? 'bg-emerald-400'
@@ -111,53 +118,53 @@ function WorkflowStatusPanel({
                 />
               )}
 
-              <div className="relative z-10 flex-shrink-0">
+                <div className="relative z-10 flex-shrink-0">
                 {step.status === 'completed' && (
                   <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center">
                     <Check size={16} className="text-white" />
-                  </div>
-                )}
+                    </div>
+                  )}
                 {step.status === 'current' && (
                   <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center">
                     <Clock3 size={16} className="text-white" />
-                  </div>
-                )}
+                    </div>
+                  )}
                 {step.status === 'skipped' && (
                   <div className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center">
                     <SkipForward size={16} className="text-white" />
-                  </div>
-                )}
+                    </div>
+                  )}
                 {step.status === 'pending' && (
                   <div className="w-8 h-8 rounded-full border-2 border-slate-200 bg-white" />
-                )}
-              </div>
-
+                  )}
+                </div>
+  
               <div className={`flex-1 min-w-0 ${isLast ? 'pb-0' : 'pb-5'}`}>
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-xs font-medium text-slate-700">
-                      Step {step.step} · {step.type}
-                    </span>
+                        Step {step.step} · {step.type}
+                      </span>
                     {step.status === 'current' && (
                       <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 text-[10px] font-medium">
-                        Current
-                      </span>
-                    )}
+                          Current
+                        </span>
+                      )}
                     {step.status === 'skipped' && (
                       <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 text-[10px] font-medium">
                         Skipped
-                      </span>
+                        </span>
+                      )}
+                    </div>
+                    {step.date && (
+                    <span className="text-[10px] text-slate-400">{step.date}</span>
                     )}
                   </div>
-                  {step.date && (
-                    <span className="text-[10px] text-slate-400">{step.date}</span>
-                  )}
-                </div>
-
+  
                 <div className="flex items-center gap-2 mt-1.5">
-                  <Avatar
-                    initials={step.initials}
-                    color={
+                    <Avatar
+                      initials={step.initials}
+                      color={
                       step.status === 'pending'
                         ? 'gray'
                         : step.status === 'current'
@@ -167,13 +174,13 @@ function WorkflowStatusPanel({
                             : 'green'
                     }
                   />
-                  <span
+                    <span
                     className={`text-sm ${
                       step.status === 'pending' ? 'text-slate-400' : 'text-slate-700'
                     }`}
-                  >
-                    {step.user}
-                  </span>
+                    >
+                      {step.user}
+                    </span>
                 </div>
 
                 {step.comment && (
@@ -185,16 +192,16 @@ function WorkflowStatusPanel({
                     {step.status === 'skipped' ? `Reason: ${step.comment}` : step.comment}
                   </p>
                 )}
-              </div>
-            </div>
+                  </div>
+                </div>
           )
-        })}
+          })}
 
         {workflowSteps.length === 0 && (
           <p className="text-sm text-slate-500">No workflow steps configured.</p>
         )}
-      </div>
-    </section>
+        </div>
+      </section>
   )
 }
 
@@ -216,46 +223,46 @@ function QuickInfo({
     { label: 'Approvers', value: approvers },
   ]
 
-  return (
+    return (
     <section className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5">
       <h2 className="text-sm sm:text-base font-semibold text-slate-900 mb-4">
-        Quick Info
-      </h2>
-      <div className="space-y-3">
+          Quick Info
+        </h2>
+        <div className="space-y-3">
         {rows.map(row => (
           <div key={row.label} className="flex items-center justify-between">
             <span className="text-xs text-slate-500">{row.label}</span>
             <span className="text-sm font-medium text-slate-700">{row.value}</span>
           </div>
         ))}
-      </div>
-    </section>
+        </div>
+      </section>
   )
 }
 
 function DocumentDetails({ document }: { document: DocumentDetailView }) {
-  return (
+    return (
     <section className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5">
       <h2 className="text-sm sm:text-base font-semibold text-slate-900 mb-5">
-        Document Details
-      </h2>
+          Document Details
+        </h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5">
         {document.details.map(detail => (
-          <div key={detail.label}>
+            <div key={detail.label}>
             <p className="text-[10px] sm:text-xs font-medium tracking-wide text-slate-400 mb-1.5">
-              {detail.label}
-            </p>
-            {detail.code ? (
+                {detail.label}
+              </p>
+              {detail.code ? (
               <span className="inline-flex px-2 py-1 rounded bg-slate-50 text-[11px] font-mono text-slate-600 break-all">
-                {detail.value}
-              </span>
-            ) : (
+                  {detail.value}
+                </span>
+              ) : (
               <p className="text-sm text-slate-800 break-words">{detail.value}</p>
-            )}
-          </div>
-        ))}
-      </div>
-    </section>
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
   )
 }
 
@@ -350,8 +357,8 @@ function DocumentPreview({
                   event.target.value = ''
                 }}
               />
-              <button
-                type="button"
+          <button
+            type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={resubmitLoading}
                 className="inline-flex items-center justify-center gap-2 h-10 px-5 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-60"
@@ -362,8 +369,8 @@ function DocumentPreview({
                   <Upload size={15} />
                 )}
                 {resubmitLoading ? 'Uploading...' : 'Upload, Sign & Resubmit'}
-              </button>
-            </div>
+          </button>
+        </div>
           )}
         </div>
       </section>
@@ -375,12 +382,12 @@ function DocumentPreview({
       <div className="px-4 sm:px-5 py-3.5 sm:py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100">
         <div className="min-w-0">
           <h2 className="text-sm sm:text-base font-semibold text-slate-900">
-            Document Preview
+            Preview
           </h2>
           <span className="text-xs text-slate-400">
             {fileName} · v{versionNumber}
-          </span>
-        </div>
+              </span>
+            </div>
         <div className="flex flex-wrap gap-2 flex-shrink-0">
           {canApprove && onSignClick && (
             <button
@@ -443,17 +450,16 @@ function DocumentPreview({
             </>
           )}
           {onDownload && (
-            <button
-              type="button"
+              <button
+                type="button"
               onClick={onDownload}
               className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs sm:text-sm font-medium hover:bg-slate-50"
-            >
-              <Download size={15} />
-              Download
-            </button>
+              >
+                <Download size={15} />
+              </button>
           )}
-        </div>
-      </div>
+            </div>
+          </div>
 
       <div className="p-4 bg-slate-50">
         {loading ? (
@@ -468,8 +474,303 @@ function DocumentPreview({
         ) : (
           <PdfDocumentViewer file={pdfFile} />
         )}
-      </div>
-    </section>
+        </div>
+      </section>
+  )
+}
+
+function isPreviewableImage(contentType: string, fileName: string): boolean {
+  if (contentType.startsWith('image/')) return true
+  return /\.(png|jpe?g|gif|webp)$/i.test(fileName)
+}
+
+function isPreviewablePdf(contentType: string, fileName: string): boolean {
+  if (contentType === 'application/pdf' || contentType.includes('pdf')) return true
+  return /\.pdf$/i.test(fileName)
+}
+
+function isPreviewableText(contentType: string, fileName: string): boolean {
+  if (contentType.startsWith('text/')) return true
+  return /\.(txt|csv)$/i.test(fileName)
+}
+
+function SupportingDocsTab({
+  documentId,
+  documents,
+}: {
+  documentId: string
+  documents: SupportingDocumentView[]
+}) {
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
+  const [previewDoc, setPreviewDoc] = useState<SupportingDocumentView | null>(null)
+  const [previewBlob, setPreviewBlob] = useState<Blob | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [previewText, setPreviewText] = useState<string | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) window.URL.revokeObjectURL(previewUrl)
+    }
+  }, [previewUrl])
+
+  const closePreview = () => {
+    setPreviewDoc(null)
+    setPreviewBlob(null)
+    setPreviewText(null)
+    setPreviewError(null)
+    setPreviewLoading(false)
+    if (previewUrl) {
+      window.URL.revokeObjectURL(previewUrl)
+      setPreviewUrl(null)
+    }
+  }
+
+  const handlePreview = async (doc: SupportingDocumentView) => {
+    setPreviewDoc(doc)
+    setPreviewBlob(null)
+    setPreviewText(null)
+    setPreviewError(null)
+    setPreviewLoading(true)
+    if (previewUrl) {
+      window.URL.revokeObjectURL(previewUrl)
+      setPreviewUrl(null)
+    }
+
+    try {
+      const { blob, contentType } = await fetchSupportingDocumentFile(
+        documentId,
+        doc.id,
+      )
+      const resolvedType = contentType || doc.contentType
+
+      if (isPreviewableText(resolvedType, doc.fileName)) {
+        setPreviewText(await blob.text())
+        return
+      }
+
+      if (
+        isPreviewablePdf(resolvedType, doc.fileName) ||
+        isPreviewableImage(resolvedType, doc.fileName)
+      ) {
+        setPreviewBlob(blob)
+        setPreviewUrl(window.URL.createObjectURL(blob))
+        return
+      }
+
+      // Office / unsupported — keep modal open with download fallback
+      setPreviewBlob(blob)
+      setPreviewUrl(window.URL.createObjectURL(blob))
+    } catch (err) {
+      setPreviewError(err instanceof Error ? err.message : 'Failed to load preview')
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
+
+  const handleDownload = async (doc: SupportingDocumentView) => {
+    setDownloadingId(doc.id)
+    setDownloadError(null)
+    try {
+      await downloadSupportingDocument(documentId, doc.id, doc.fileName)
+    } catch (err) {
+      setDownloadError(err instanceof Error ? err.message : 'Download failed')
+    } finally {
+      setDownloadingId(null)
+    }
+  }
+
+  if (documents.length === 0) {
+    return (
+      <section className="bg-white border border-slate-200 rounded-xl p-8 text-center">
+        <FileText size={28} className="mx-auto text-slate-300 mb-3" />
+        <h2 className="text-sm font-semibold text-slate-900">No supporting documents</h2>
+        <p className="mt-1 text-xs sm:text-sm text-slate-500">
+          The preparer did not attach any supporting files to this submission.
+        </p>
+      </section>
+    )
+  }
+
+  const previewContentType = previewDoc
+    ? previewBlob?.type || previewDoc.contentType
+    : ''
+  const canShowPdf =
+    previewDoc &&
+    previewBlob &&
+    isPreviewablePdf(previewContentType, previewDoc.fileName)
+  const canShowImage =
+    previewDoc &&
+    previewUrl &&
+    isPreviewableImage(previewContentType, previewDoc.fileName)
+  const canShowText = previewDoc && previewText !== null
+  const unsupportedPreview =
+    previewDoc &&
+    !previewLoading &&
+    !previewError &&
+    !canShowPdf &&
+    !canShowImage &&
+    !canShowText
+
+  return (
+    <>
+      <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <div className="px-4 sm:px-5 py-3.5 border-b border-slate-100">
+          <h2 className="text-sm sm:text-base font-semibold text-slate-900">
+            Supporting Documents
+          </h2>
+          <p className="text-xs text-slate-400 mt-0.5">
+            {documents.length} file{documents.length === 1 ? '' : 's'} attached by the preparer · click a file to preview
+          </p>
+        </div>
+
+        {downloadError && (
+          <div className="px-4 sm:px-5 py-2 text-sm text-red-600 border-b border-red-100 bg-red-50">
+            {downloadError}
+          </div>
+        )}
+
+        <ul className="divide-y divide-slate-100">
+          {documents.map(doc => (
+            <li key={doc.id}>
+              <div className="px-4 sm:px-5 py-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => handlePreview(doc)}
+                  className="min-w-0 flex items-start gap-3 text-left rounded-lg hover:bg-slate-50 -mx-1 px-1 py-1 transition-colors"
+                >
+                  <div className="w-9 h-9 rounded-lg bg-sky-50 flex items-center justify-center flex-shrink-0">
+                    <FileText size={16} className="text-sky-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-slate-900 truncate group-hover:text-emerald-700">
+                      {doc.fileName}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {doc.sizeLabel} · uploaded {doc.uploadedAt}
+                    </p>
+                  </div>
+                </button>
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => handlePreview(doc)}
+                    className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg border border-sky-200 bg-sky-50 text-sky-700 text-xs sm:text-sm font-medium hover:bg-sky-100"
+                  >
+                    <Eye size={15} />
+                    Preview
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDownload(doc)}
+                    disabled={downloadingId === doc.id}
+                    className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs sm:text-sm font-medium hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    {downloadingId === doc.id ? (
+                      <Loader2 size={15} className="animate-spin" />
+                    ) : (
+                      <Download size={15} />
+                    )}
+                    Download
+                  </button>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {previewDoc && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6"
+          style={{ background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(2px)' }}
+          onClick={closePreview}
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col border border-slate-200"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-slate-100 flex-shrink-0">
+              <div className="min-w-0">
+                <h3 className="font-semibold text-slate-900 text-base truncate">
+                  {previewDoc.fileName}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {previewDoc.sizeLabel} · Supporting document
+                </p>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleDownload(previewDoc)}
+                  disabled={downloadingId === previewDoc.id}
+                  className="inline-flex items-center gap-2 h-9 px-3 rounded-lg border border-slate-200 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                >
+                  {downloadingId === previewDoc.id ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Download size={14} />
+                  )}
+                  Download
+                </button>
+                <button
+                  type="button"
+                  onClick={closePreview}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100"
+                >
+                  <XCircle size={16} />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-auto p-4 sm:p-6 bg-slate-50 min-h-[280px]">
+              {previewLoading ? (
+                <div className="flex items-center justify-center min-h-[280px] gap-2 text-sm text-slate-500">
+                  <Loader2 size={18} className="animate-spin text-emerald-600" />
+                  Loading preview...
+                </div>
+              ) : previewError ? (
+                <div className="text-center py-16 text-sm text-red-600">{previewError}</div>
+              ) : canShowPdf && previewBlob ? (
+                <PdfDocumentViewer file={previewBlob} />
+              ) : canShowImage && previewUrl ? (
+                <div className="flex items-center justify-center">
+                  <img
+                    src={previewUrl}
+                    alt={previewDoc.fileName}
+                    className="max-w-full max-h-[70vh] rounded-lg border border-slate-200 bg-white object-contain"
+                  />
+                </div>
+              ) : canShowText ? (
+                <pre className="whitespace-pre-wrap break-words text-xs sm:text-sm text-slate-700 bg-white border border-slate-200 rounded-lg p-4 max-h-[70vh] overflow-auto">
+                  {previewText}
+                </pre>
+              ) : unsupportedPreview ? (
+                <div className="text-center py-16 px-4">
+                  <FileText size={32} className="mx-auto text-slate-300 mb-3" />
+                  <p className="text-sm font-medium text-slate-800">
+                    Preview not available for this file type
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                    Word and Excel files can be downloaded and opened on your device.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => handleDownload(previewDoc)}
+                    className="mt-4 inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700"
+                  >
+                    <Download size={15} />
+                    Download file
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -497,62 +798,62 @@ function CommentsTab({
       setError(err instanceof Error ? err.message : 'Failed to add comment')
     }
   }
-
-  return (
+  
+    return (
     <section className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5">
       <div className="flex items-center justify-between mb-5">
-        <div>
+          <div>
           <h2 className="text-sm sm:text-base font-semibold text-slate-900">Comments</h2>
           <p className="text-xs text-slate-400 mt-1">Discussion related to this document</p>
-        </div>
+          </div>
         <MessageSquare size={18} className="text-slate-400" />
-      </div>
-
-      <div className="space-y-5">
+        </div>
+  
+        <div className="space-y-5">
         {comments.length === 0 && (
           <p className="text-sm text-slate-500">No comments yet.</p>
         )}
         {comments.map(comment => (
           <div key={comment.id} className="flex gap-3">
             <Avatar initials={comment.initials} color="blue" />
-            <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0">
               <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
                 <span className="text-sm font-medium text-slate-800">{comment.user}</span>
                 <span className="text-[10px] text-slate-400">{comment.date}</span>
-              </div>
+                </div>
               <p className="mt-2 text-xs sm:text-sm leading-relaxed text-slate-600">
-                {comment.comment}
-              </p>
+                  {comment.comment}
+                </p>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-6 pt-5 border-t border-slate-100">
+          ))}
+        </div>
+  
+        <div className="mt-6 pt-5 border-t border-slate-100">
         <label className="block text-xs font-medium text-slate-700 mb-2">Add Comment</label>
-        <textarea
-          value={newComment}
+          <textarea
+            value={newComment}
           onChange={e => setNewComment(e.target.value)}
-          rows={3}
-          placeholder="Write a comment..."
+            rows={3}
+            placeholder="Write a comment..."
           className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 placeholder:text-slate-400 resize-none outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
         />
         {error && (
           <p className="mt-2 text-xs text-red-600">{error}</p>
         )}
-        <div className="flex justify-end mt-2">
-          <button
-            type="button"
+          <div className="flex justify-end mt-2">
+            <button
+              type="button"
             disabled={!newComment.trim() || commentLoading}
             onClick={handleSubmit}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {commentLoading && <Loader2 size={14} className="animate-spin" />}
-            Add Comment
-          </button>
+              Add Comment
+            </button>
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
   )
 }
 
@@ -574,7 +875,7 @@ function AuditHistoryTab({
     }
   }
 
-  return (
+    return (
     <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
       <div className="px-4 sm:px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3">
         <div>
@@ -590,48 +891,48 @@ function AuditHistoryTab({
           {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
           Export CSV
         </button>
-      </div>
-
+        </div>
+  
       {records.length === 0 ? (
         <div className="px-4 sm:px-5 py-10 text-center text-sm text-slate-500">
           No audit records yet.
         </div>
       ) : (
         <>
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200">
                   {['DATE', 'TIME', 'USER', 'ROLE', 'ACTION', 'COMMENTS'].map(col => (
                     <th
                       key={col}
                       className="px-4 py-3 text-left text-[10px] font-semibold text-slate-500"
                     >
                       {col}
-                    </th>
+                </th>
                   ))}
-                </tr>
-              </thead>
-              <tbody>
+              </tr>
+            </thead>
+            <tbody>
                 {records.map(record => (
                   <tr key={record.id} className="border-b border-slate-100 last:border-0">
                     <td className="px-4 py-3 text-xs text-slate-500">{record.date}</td>
                     <td className="px-4 py-3 text-xs font-mono text-slate-500">{record.time}</td>
                     <td className="px-4 py-3 text-xs text-slate-700">{record.user}</td>
                     <td className="px-4 py-3 text-xs text-slate-500">{record.role}</td>
-                    <td className="px-4 py-3">
+                  <td className="px-4 py-3">
                       <span className="inline-flex px-2 py-1 rounded bg-emerald-50 text-emerald-600 text-[10px] font-medium">
-                        {record.action}
-                      </span>
-                    </td>
+                      {record.action}
+                    </span>
+                  </td>
                     <td className="px-4 py-3 text-xs text-slate-500 max-w-xs">{record.comment}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="md:hidden divide-y divide-slate-100">
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+  
+        <div className="md:hidden divide-y divide-slate-100">
             {records.map(record => (
               <div key={record.id} className="px-4 py-4">
                 <div className="flex items-center justify-between gap-2">
@@ -646,16 +947,16 @@ function AuditHistoryTab({
                   <p className="mt-2 text-xs text-slate-500 leading-relaxed">{record.comment}</p>
                 )}
                 <p className="mt-2 text-[10px] font-mono text-slate-400">{record.time}</p>
-              </div>
-            ))}
-          </div>
+            </div>
+          ))}
+        </div>
         </>
       )}
-    </section>
+      </section>
   )
-}
-
-export default function DocumentDetail() {
+  }
+  
+  export default function DocumentDetail() {
   const { id: documentIdParam } = useParams<{ id: string }>()
   const documentId = documentIdParam ?? ''
   const navigate = useNavigate()
@@ -872,13 +1173,6 @@ export default function DocumentDetail() {
     }
   }
 
-  const tabs: { id: Tab; label: string }[] = [
-    { id: 'overview', label: 'Document Overview' },
-    { id: 'workflow', label: 'Approval Workflow' },
-    { id: 'comments', label: 'Comments' },
-    { id: 'audit', label: 'Approval Log' },
-  ]
-
   if (loading) {
     return (
       <main className="w-full max-w-[1400px] mx-auto px-3 sm:px-5 lg:px-6 py-16 flex flex-col items-center justify-center gap-3">
@@ -903,82 +1197,97 @@ export default function DocumentDetail() {
             >
               Go back
             </button>
-            <button
-              type="button"
+          <button
+            type="button"
               onClick={refetch}
               className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700"
-            >
+          >
               Retry
-            </button>
+          </button>
           </div>
         </div>
       </main>
     )
   }
 
-  const { document, workflowSteps, completedSteps, totalSteps, reviewers, approvers, workflowSummary, comments, auditRecords, canApprove, canResubmit, canSkipStep, pendingActionType } = data
+  const { document, workflowSteps, completedSteps, totalSteps, reviewers, approvers, workflowSummary, comments, auditRecords, supportingDocuments, canApprove, canResubmit, canSkipStep, pendingActionType } = data
   const isDeleted = document.status === 'deleted'
   const canDelete = user?.id === document.preparerId && !isDeleted
+  const supportingCount = supportingDocuments.length
+
+  const tabs: { id: Tab; label: string }[] = [
+    { id: 'overview', label: 'Document Overview' },
+    {
+      id: 'supporting',
+      label:
+        supportingCount > 0
+          ? `Supporting Docs (${supportingCount})`
+          : 'Supporting Docs',
+    },
+    { id: 'workflow', label: 'Approval Workflow' },
+    { id: 'comments', label: 'Comments' },
+    { id: 'audit', label: 'Approval Log' },
+  ]
 
   return (
     <main className="w-full max-w-[1400px] mx-auto px-3 sm:px-5 lg:px-6 py-4 sm:py-6">
       <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap mb-4 sm:mb-5 text-xs sm:text-sm">
-        <button
-          type="button"
+          <button
+            type="button"
           onClick={() => navigate(ROUTES.dashboard)}
           className="text-slate-400 hover:text-emerald-600"
-        >
+          >
           Dashboard
-        </button>
+          </button>
         <span className="text-slate-300">/</span>
         <button type="button" onClick={goBack} className="text-slate-400 hover:text-emerald-600">
           Back
         </button>
         <span className="text-slate-300">/</span>
         <span className="text-slate-800 font-medium">{formatDocumentId(documentId)}</span>
-      </div>
-
+        </div>
+  
       <section className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 lg:p-6 mb-4">
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
           <div className="flex flex-col sm:flex-row gap-4 min-w-0">
             <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-red-500 flex items-center justify-center flex-shrink-0">
               <span className="text-white text-sm sm:text-base font-bold">PDF</span>
-            </div>
-
-            <div className="min-w-0">
+              </div>
+  
+              <div className="min-w-0">
               <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900 break-words">
                 {document.title}
-              </h1>
-
+                </h1>
+  
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-2">
                 <span className="px-2 py-1 rounded bg-slate-50 text-[10px] sm:text-xs font-mono text-slate-500">
                   {formatDocumentId(document.id)}
-                </span>
+                  </span>
                 <StatusBadge status={document.status} />
-              </div>
-
+                </div>
+  
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3 text-xs text-slate-500">
-                <span className="flex items-center gap-1.5">
-                  <User size={13} />
+                  <span className="flex items-center gap-1.5">
+                    <User size={13} />
                   Submitted by {document.preparerName}
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <CalendarDays size={13} />
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <CalendarDays size={13} />
                   {document.submittedDate}
-                </span>
-                <span className="flex items-center gap-1.5 break-all">
-                  <FileText size={13} />
+                  </span>
+                  <span className="flex items-center gap-1.5 break-all">
+                    <FileText size={13} />
                   {document.fileName} · v{document.versionNumber}
-                </span>
-              </div>
-
+                  </span>
+                </div>
+  
               <p className="flex items-start gap-2 mt-3 text-xs sm:text-sm text-slate-500 leading-relaxed">
                 <Clock3 size={14} className="flex-shrink-0 mt-0.5" />
                 {document.description}
-              </p>
+                </p>
+              </div>
             </div>
-          </div>
-
+  
           <div className="flex gap-2 w-full lg:w-auto flex-shrink-0 flex-wrap">
             {canSkipStep && (
               <button
@@ -1018,16 +1327,16 @@ export default function DocumentDetail() {
                 Preview
               </button>
             )}
-            <button
-              type="button"
+              <button
+                type="button"
               className="hidden sm:flex lg:hidden w-10 h-10 items-center justify-center rounded-lg border border-slate-200 text-slate-500"
-            >
-              <MoreHorizontal size={17} />
-            </button>
+              >
+                <MoreHorizontal size={17} />
+              </button>
+            </div>
           </div>
-        </div>
-      </section>
-
+        </section>
+  
       {isDeleted && (
         <section className="bg-slate-50 border border-slate-200 rounded-xl p-4 sm:p-5 mb-4">
           <p className="text-sm font-medium text-slate-900">Document deleted by preparer</p>
@@ -1059,28 +1368,46 @@ export default function DocumentDetail() {
         <div className="flex overflow-x-auto scrollbar-none">
           {tabs.map(tab => {
             const active = activeTab === tab.id
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
                 className={`relative flex-shrink-0 px-4 sm:px-5 py-3.5 text-xs sm:text-sm font-medium transition-colors ${
                   active ? 'text-emerald-600' : 'text-slate-500 hover:text-slate-700'
                 }`}
-              >
-                {tab.label}
-                {active && (
+                >
+                  {tab.label}
+                  {active && (
                   <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-600" />
-                )}
-              </button>
+                  )}
+                </button>
             )
-          })}
+            })}
+          </div>
         </div>
-      </div>
-
+  
       {activeTab === 'overview' && (
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)] gap-4 sm:gap-5">
-          <div className="space-y-4 sm:space-y-5">
+            <div className="space-y-4 sm:space-y-5">
+            {supportingCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('supporting')}
+                className="w-full text-left rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 flex items-start gap-3 hover:bg-sky-100/70 transition-colors"
+              >
+                <Paperclip size={18} className="text-sky-600 flex-shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-sky-900">
+                    {supportingCount} supporting document
+                    {supportingCount === 1 ? '' : 's'} attached to this document
+                  </p>
+                  <p className="text-xs text-sky-700 mt-0.5">
+                    Click to open the Supporting Docs tab
+                  </p>
+                </div>
+              </button>
+            )}
             <DocumentDetails document={document} />
             <div id="document-preview">
               <DocumentPreview
@@ -1100,7 +1427,7 @@ export default function DocumentDetail() {
               />
             </div>
           </div>
-          <div className="space-y-4 sm:space-y-5">
+            <div className="space-y-4 sm:space-y-5">
             <WorkflowStatusPanel
               workflowSteps={workflowSteps}
               completedSteps={completedSteps}
@@ -1112,6 +1439,15 @@ export default function DocumentDetail() {
               approvers={approvers}
             />
           </div>
+        </div>
+      )}
+
+      {activeTab === 'supporting' && (
+        <div className="max-w-[900px] mx-auto">
+          <SupportingDocsTab
+            documents={supportingDocuments}
+            documentId={documentId}
+          />
         </div>
       )}
 
@@ -1127,7 +1463,7 @@ export default function DocumentDetail() {
             </h2>
             <p className="text-xs sm:text-sm text-slate-500">{workflowSummary}</p>
           </section>
-        </div>
+            </div>
       )}
 
       {activeTab === 'comments' && (
@@ -1137,14 +1473,14 @@ export default function DocumentDetail() {
             onAddComment={addComment}
             commentLoading={commentLoading}
           />
-        </div>
-      )}
-
+          </div>
+        )}
+  
       {activeTab === 'audit' && (
         <div className="max-w-[1100px] mx-auto">
           <AuditHistoryTab records={auditRecords} documentId={documentId} />
-        </div>
-      )}
+          </div>
+        )}
       <SignApproveModal
         open={signModalOpen}
         documentId={documentId}
@@ -1328,6 +1664,6 @@ export default function DocumentDetail() {
           </div>
         </div>
       </Modal>
-    </main>
+      </main>
   )
-}
+  }

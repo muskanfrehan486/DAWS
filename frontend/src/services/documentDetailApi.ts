@@ -95,6 +95,42 @@ export async function fetchDocumentFile(documentId: string): Promise<Blob> {
   return res.blob()
 }
 
+export async function fetchSupportingDocumentFile(
+  documentId: string,
+  attachmentId: string,
+): Promise<{ blob: Blob; contentType: string }> {
+  const res = await fetch(
+    `/api/documents/${documentId}/supporting/${attachmentId}/file`,
+    {
+      headers: { ...authHeaders() },
+    },
+  )
+
+  if (!res.ok) {
+    throw new Error(await parseApiError(res))
+  }
+
+  const blob = await res.blob()
+  const contentType =
+    res.headers.get('Content-Type') || blob.type || 'application/octet-stream'
+
+  return { blob, contentType }
+}
+
+export async function downloadSupportingDocument(
+  documentId: string,
+  attachmentId: string,
+  fileName: string,
+): Promise<void> {
+  const { blob } = await fetchSupportingDocumentFile(documentId, attachmentId)
+  const url = window.URL.createObjectURL(blob)
+  const link = window.document.createElement('a')
+  link.href = url
+  link.download = fileName
+  link.click()
+  window.URL.revokeObjectURL(url)
+}
+
 export async function resubmitDocument(
   documentId: string,
   file: File,
@@ -107,10 +143,14 @@ export async function resubmitDocument(
     signatureWidth: number
     signatureHeight: number
   },
+  supportingFiles: File[] = [],
 ): Promise<void> {
   const formData = new FormData()
   formData.append('file', file)
   formData.append('signature', JSON.stringify(signature))
+  for (const supporting of supportingFiles) {
+    formData.append('supportingFiles', supporting)
+  }
 
   const res = await fetch(`/api/documents/${documentId}`, {
     method: 'PATCH',

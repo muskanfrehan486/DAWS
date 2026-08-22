@@ -12,8 +12,17 @@ export interface ApiDocumentVersion {
   uploadedAt: string
 }
 
+export interface ApiSupportingDocument {
+  id: string
+  fileName: string
+  contentType: string
+  sizeBytes: number
+  uploadedAt: string
+}
+
 export interface ApiDocumentDetail extends ApiDocument {
   versions: ApiDocumentVersion[]
+  supportingDocuments?: ApiSupportingDocument[]
   approvalChain: {
     steps: {
       id: string
@@ -26,6 +35,12 @@ export interface ApiDocumentDetail extends ApiDocument {
     id: string
     status: string
     currentStepOrder: number
+  } | null
+  currentStep?: {
+    id: string
+    stepOrder: number
+    approvalType: ApiApprovalType
+    assignedUser: { id: string; firstName: string; lastName: string }
   } | null
 }
 
@@ -109,6 +124,14 @@ export interface DocumentAuditView {
   comment: string
 }
 
+export interface SupportingDocumentView {
+  id: string
+  fileName: string
+  contentType: string
+  sizeLabel: string
+  uploadedAt: string
+}
+
 export interface DocumentDetailData {
   document: DocumentDetailView
   workflowSteps: WorkflowStepView[]
@@ -119,6 +142,7 @@ export interface DocumentDetailData {
   workflowSummary: string
   comments: CommentView[]
   auditRecords: DocumentAuditView[]
+  supportingDocuments: SupportingDocumentView[]
   canApprove: boolean
   pendingActionType: ApiApprovalType | null
   canResubmit: boolean

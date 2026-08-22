@@ -23,6 +23,25 @@ class StorageService {
     return path;
   }
 
+  async uploadFile(
+    path: string,
+    buffer: Buffer,
+    contentType: string
+  ): Promise<string> {
+    const { error } = await supabaseAdmin.storage
+      .from(DOCUMENTS_BUCKET)
+      .upload(path, buffer, {
+        contentType,
+        upsert: false,
+      });
+
+    if (error) {
+      throw errors.internal("Failed to upload file");
+    }
+
+    return path;
+  }
+
   async downloadDocument(path: string): Promise<Buffer> {
     const { data, error } = await supabaseAdmin.storage
       .from(DOCUMENTS_BUCKET)
