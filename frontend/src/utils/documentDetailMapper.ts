@@ -2,11 +2,13 @@ import type {
   ApiComment,
   ApiDocumentAuditEntry,
   ApiDocumentDetail,
+  ApiSupportingDocument,
   ApiWorkflowResponse,
   CommentView,
   DocumentAuditView,
   DocumentDetailView,
   AssembledDocumentDetailData,
+  SupportingDocumentView,
   WorkflowStepStatus,
   WorkflowStepView,
 } from '../types/documentDetail.ts'
@@ -254,6 +256,21 @@ export function buildDocumentAuditViews(
   }))
 }
 
+export function buildSupportingDocumentViews(
+  documents: ApiSupportingDocument[] | undefined,
+): SupportingDocumentView[] {
+  return (documents ?? []).map(doc => ({
+    id: doc.id,
+    fileName: doc.fileName,
+    contentType: doc.contentType,
+    sizeLabel:
+      doc.sizeBytes >= 1024 * 1024
+        ? `${(doc.sizeBytes / (1024 * 1024)).toFixed(1)} MB`
+        : `${Math.max(1, Math.round(doc.sizeBytes / 1024))} KB`,
+    uploadedAt: formatDisplayDate(doc.uploadedAt),
+  }))
+}
+
 export function assembleDocumentDetailData(
   document: ApiDocumentDetail,
   workflow: ApiWorkflowResponse,
@@ -279,5 +296,8 @@ export function assembleDocumentDetailData(
     workflowSummary: buildWorkflowSummary(workflow, workflowSteps),
     comments: buildCommentViews(comments),
     auditRecords: buildDocumentAuditViews(auditEntries),
+    supportingDocuments: buildSupportingDocumentViews(
+      document.supportingDocuments,
+    ),
   }
 }

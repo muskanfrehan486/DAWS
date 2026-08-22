@@ -29,4 +29,5 @@ export interface CreateDocumentInput {
   file: File
   approvalChain: ApprovalChainStepInput[]
   signature: PreparerSignatureInput
+  supportingFiles?: File[]
 }

@@ -16,8 +16,11 @@ import {
 import {
   APPROVAL_TYPE_OPTIONS,
   MAX_PDF_SIZE_BYTES,
+  MAX_SUPPORTING_FILES,
+  SUPPORTING_FILE_ACCEPT,
   toApprovalChainPayload,
   validateSubmitDocumentForm,
+  validateSupportingFile,
   type ApprovalStepForm,
 } from '../utils/submitDocument';
 import { useNavigate } from 'react-router-dom';
@@ -37,13 +40,16 @@ function createEmptyStep(): ApprovalStepForm {
 export default function SubmitDocument() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const supportingInputRef = useRef<HTMLInputElement>(null);
   const { users, loading: usersLoading, error: usersError, refetch } =
     useAssignableUsers();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  const [supportingFiles, setSupportingFiles] = useState<File[]>([]);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [supportingError, setSupportingError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [signModalOpen, setSignModalOpen] = useState(false);
@@ -87,6 +93,36 @@ export default function SubmitDocument() {
     setFileError(error);
     setFile(error ? null : selectedFile);
   };
+
+  const handleSupportingFilesChange = (selectedFiles: FileList | null) => {
+    if (!selectedFiles?.length) return;
+
+    setSupportingError(null);
+    const next = [...supportingFiles];
+
+    for (const selected of Array.from(selectedFiles)) {
+      if (next.some(f => f.name === selected.name && f.size === selected.size)) {
+        continue;
+      }
+      if (next.length >= MAX_SUPPORTING_FILES) {
+        setSupportingError(`You can attach up to ${MAX_SUPPORTING_FILES} supporting files.`);
+        break;
+      }
+      const error = validateSupportingFile(selected);
+      if (error) {
+        setSupportingError(error);
+        continue;
+      }
+      next.push(selected);
+    }
+
+    setSupportingFiles(next);
+  };
+
+  const removeSupportingFile = (index: number) => {
+    setSupportingFiles(prev => prev.filter((_, i) => i !== index));
+    setSupportingError(null);
+  };
   
     const handleDrop = (
       e: React.DragEvent<HTMLDivElement>,
@@ -123,6 +159,7 @@ export default function SubmitDocument() {
         file: file!,
         approvalChain: toApprovalChainPayload(steps),
         signature,
+        supportingFiles,
       });
 
       setSignModalOpen(false);
@@ -594,6 +631,82 @@ export default function SubmitDocument() {
                 </>
               )}
             </div>
+          </div>
+        </section>
+
+        {/* Supporting Documents */}
+        <section className="bg-white rounded-xl border border-slate-200 overflow-hidden mb-4 sm:mb-5">
+          <div className="px-4 py-3.5 sm:px-5 sm:py-4 border-b border-slate-100 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-sky-50 flex items-center justify-center flex-shrink-0">
+              <FileText size={16} className="text-sky-600" />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900">
+                Supporting Documents
+                <span className="text-slate-400 font-normal ml-1">(Optional)</span>
+              </h2>
+              <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5">
+                Attach reference files for reviewers (PDF, images, Word, Excel, TXT, CSV · max {MAX_SUPPORTING_FILES} files, 20 MB each)
+              </p>
+            </div>
+          </div>
+
+          <div className="p-4 sm:p-5 space-y-3">
+            <input
+              ref={supportingInputRef}
+              type="file"
+              className="hidden"
+              multiple
+              accept={SUPPORTING_FILE_ACCEPT}
+              onChange={e => {
+                handleSupportingFilesChange(e.target.files)
+                e.target.value = ''
+              }}
+            />
+
+            <button
+              type="button"
+              onClick={() => supportingInputRef.current?.click()}
+              className="w-full min-h-[88px] border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/30 flex flex-col items-center justify-center gap-1.5 text-sm text-slate-600 hover:border-sky-300 hover:bg-sky-50/30 transition-colors"
+            >
+              <Upload size={18} className="text-sky-600" />
+              <span className="font-medium">Add supporting files</span>
+              <span className="text-xs text-slate-400">
+                {supportingFiles.length}/{MAX_SUPPORTING_FILES} attached
+              </span>
+            </button>
+
+            {supportingError && (
+              <p className="text-xs text-red-600">{supportingError}</p>
+            )}
+
+            {supportingFiles.length > 0 && (
+              <ul className="space-y-2">
+                {supportingFiles.map((item, index) => (
+                  <li
+                    key={`${item.name}-${item.size}-${index}`}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2.5"
+                  >
+                    <div className="min-w-0 flex items-center gap-2">
+                      <FileText size={15} className="text-slate-400 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm text-slate-800 truncate">{item.name}</p>
+                        <p className="text-[11px] text-slate-400">
+                          {(item.size / 1024 / 1024).toFixed(1)} MB
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeSupportingFile(index)}
+                      className="text-xs text-red-600 hover:text-red-700 flex-shrink-0"
+                    >
+                      Remove
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </section>
   

@@ -2,7 +2,7 @@ import { Router } from "express";
 import { authenticate } from "../middleware/auth";
 import { validate } from "../middleware/validate";
 import { asyncHandler } from "../utils/asyncHandler";
-import { uploadDocument } from "../middleware/upload";
+import { uploadDocumentWithSupporting } from "../middleware/upload";
 import { documentsService } from "../services/documents.service";
 import {
   updateDocumentSchema,
@@ -10,6 +10,20 @@ import {
 } from "../schemas/documents.schema";
 
 const router = Router();
+
+function getUploadedFiles(req: Express.Request): {
+  mainFile?: Express.Multer.File;
+  supportingFiles: Express.Multer.File[];
+} {
+  const files = req.files as
+    | { [fieldname: string]: Express.Multer.File[] }
+    | undefined;
+
+  return {
+    mainFile: files?.file?.[0],
+    supportingFiles: files?.supportingFiles ?? [],
+  };
+}
 
 router.get(
   "/",
@@ -50,6 +64,26 @@ router.get(
 );
 
 router.get(
+  "/:id/supporting/:attachmentId/file",
+  authenticate,
+  asyncHandler(async (req, res) => {
+    const { buffer, fileName, contentType } =
+      await documentsService.getSupportingDocumentFile(
+        req.params.id as string,
+        req.params.attachmentId as string,
+        req.supabaseUserId!
+      );
+
+    res.setHeader("Content-Type", contentType);
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="${encodeURIComponent(fileName)}"`
+    );
+    res.send(buffer);
+  })
+);
+
+router.get(
   "/:id",
   authenticate,
   asyncHandler(async (req, res) => {
@@ -65,7 +99,7 @@ router.get(
 router.post(
   "/",
   authenticate,
-  uploadDocument.single("file"),
+  uploadDocumentWithSupporting,
   (req, _res, next) => {
     try {
       if (req.body.approvalChain) {
@@ -81,13 +115,15 @@ router.post(
   },
   validate(createDocumentSchema),
   asyncHandler(async (req, res) => {
-    if (!req.file) {
+    const { mainFile, supportingFiles } = getUploadedFiles(req);
+    if (!mainFile) {
       throw new Error("Document PDF is required");
     }
     const result = await documentsService.createDocument(
       req.body,
-      req.file,
-      req.supabaseUserId!
+      mainFile,
+      req.supabaseUserId!,
+      supportingFiles
     );
     res.status(201).json(result);
   })
@@ -109,7 +145,7 @@ router.delete(
 router.patch(
   "/:id",
   authenticate,
-  uploadDocument.single("file"),
+  uploadDocumentWithSupporting,
   (req, _res, next) => {
     try {
       if (req.body.approvalChain) {
@@ -125,11 +161,13 @@ router.patch(
   },
   validate(updateDocumentSchema),
   asyncHandler(async (req, res) => {
+    const { mainFile, supportingFiles } = getUploadedFiles(req);
     const result = await documentsService.updateDocument(
       req.params.id as string,
       req.body,
-      req.file,
-      req.supabaseUserId!
+      mainFile,
+      req.supabaseUserId!,
+      supportingFiles
     );
 
     res.json(result);

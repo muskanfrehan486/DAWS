@@ -17,6 +17,33 @@ export const APPROVAL_TYPE_OPTIONS: {
 ]
 
 export const MAX_PDF_SIZE_BYTES = 20 * 1024 * 1024
+export const MAX_SUPPORTING_FILES = 5
+
+export const SUPPORTING_FILE_ACCEPT =
+  '.pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.txt,.csv,application/pdf,image/png,image/jpeg,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv'
+
+const SUPPORTING_MIME_TYPES = new Set([
+  'application/pdf',
+  'image/png',
+  'image/jpeg',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/plain',
+  'text/csv',
+])
+
+export function validateSupportingFile(file: File): string | null {
+  const extensionOk = /\.(pdf|png|jpe?g|docx?|xlsx?|txt|csv)$/i.test(file.name)
+  if (!SUPPORTING_MIME_TYPES.has(file.type) && !extensionOk) {
+    return `"${file.name}" is not an allowed supporting file type.`
+  }
+  if (file.size > MAX_PDF_SIZE_BYTES) {
+    return `"${file.name}" exceeds the 20 MB limit.`
+  }
+  return null
+}
 
 export function validateSubmitDocumentForm(input: {
   title: string
