@@ -84,7 +84,7 @@ export default function LoginPage() {
             </div>
             <div>
               <div className="font-bold text-slate-900 text-lg leading-tight">
-                DocFlow
+                Ideas Flow
               </div>
               <div
                 className="text-sm font-medium leading-tight"

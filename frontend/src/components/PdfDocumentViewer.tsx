@@ -2,11 +2,13 @@ import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as pdfjs from 'pdfjs-dist'
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+import { cropInkFromCanvas } from '../utils/inkCrop'
 import {
   clickToPdfPlacement,
   pdfPlacementToScreen,
   resizePdfPlacement,
   screenPointToPdf,
+  screenRectToPdfPlacement,
   type PdfPlacement,
   type ResizeHandle,
   type ScreenPlacement,
@@ -29,6 +31,11 @@ interface PdfDocumentViewerProps {
   signaturePreviewUrl?: string | null
   allowSignatureDrop?: boolean
   placementHint?: string
+  /** Draw freehand ink on the page instead of click-to-place a stamp. */
+  drawOnPdf?: boolean
+  /** Increment to wipe ink (Clear, mode switch, modal reopen). */
+  inkResetKey?: number
+  onInkChange?: (dataUrl: string | null) => void
 }
 
 const RESIZE_HANDLES: {
@@ -42,6 +49,14 @@ const RESIZE_HANDLES: {
   { id: 'se', className: 'right-0 bottom-0 translate-x-1/2 translate-y-1/2', cursor: 'nwse-resize' },
 ]
 
+function configureInkContext(ctx: CanvasRenderingContext2D, dpr: number) {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+  ctx.lineWidth = 2
+  ctx.strokeStyle = '#1e293b'
+}
+
 export default function PdfDocumentViewer({
   file,
   placementMode = false,
@@ -50,8 +65,12 @@ export default function PdfDocumentViewer({
   signaturePreviewUrl = null,
   allowSignatureDrop = false,
   placementHint,
+  drawOnPdf = false,
+  inkResetKey = 0,
+  onInkChange,
 }: PdfDocumentViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const inkCanvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -66,10 +85,111 @@ export default function PdfDocumentViewer({
     handle: ResizeHandle
     pointerId: number
   } | null>(null)
+  const drawingRef = useRef(false)
+  const strokesRef = useRef<{ x: number; y: number }[][]>([])
+  const onInkChangeRef = useRef(onInkChange)
+  const onPlacementRef = useRef(onPlacement)
+  const currentPageRef = useRef(currentPage)
+  const drawOnPdfRef = useRef(drawOnPdf)
 
   useEffect(() => {
     placementRef.current = placement
   }, [placement])
+
+  useEffect(() => {
+    onInkChangeRef.current = onInkChange
+  }, [onInkChange])
+
+  useEffect(() => {
+    onPlacementRef.current = onPlacement
+  }, [onPlacement])
+
+  useEffect(() => {
+    currentPageRef.current = currentPage
+  }, [currentPage])
+
+  useEffect(() => {
+    drawOnPdfRef.current = drawOnPdf
+  }, [drawOnPdf])
+
+  const redrawInkStrokes = useCallback((ctx: CanvasRenderingContext2D, metrics: PdfPageMetrics) => {
+    ctx.clearRect(0, 0, metrics.displayWidth, metrics.displayHeight)
+    for (const stroke of strokesRef.current) {
+      if (stroke.length === 0) continue
+      ctx.beginPath()
+      ctx.moveTo(stroke[0].x * metrics.displayWidth, stroke[0].y * metrics.displayHeight)
+      for (let i = 1; i < stroke.length; i += 1) {
+        ctx.lineTo(stroke[i].x * metrics.displayWidth, stroke[i].y * metrics.displayHeight)
+      }
+      if (stroke.length === 1) {
+        ctx.lineTo(
+          stroke[0].x * metrics.displayWidth + 0.01,
+          stroke[0].y * metrics.displayHeight,
+        )
+      }
+      ctx.stroke()
+    }
+  }, [])
+
+  const setupInkCanvas = useCallback(() => {
+    const canvas = inkCanvasRef.current
+    const metrics = metricsRef.current
+    if (!canvas || !metrics || !drawOnPdfRef.current) return
+
+    const dpr = window.devicePixelRatio || 1
+    canvas.width = metrics.displayWidth * dpr
+    canvas.height = metrics.displayHeight * dpr
+    canvas.style.width = `${metrics.displayWidth}px`
+    canvas.style.height = `${metrics.displayHeight}px`
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    configureInkContext(ctx, dpr)
+    redrawInkStrokes(ctx, metrics)
+  }, [redrawInkStrokes])
+
+  const emitInk = useCallback(() => {
+    const canvas = inkCanvasRef.current
+    const metrics = metricsRef.current
+    if (!canvas || !metrics) return
+
+    if (!drawOnPdfRef.current) return
+
+    const cropped = cropInkFromCanvas(canvas)
+    if (!cropped) {
+      onInkChangeRef.current?.(null)
+      return
+    }
+
+    onInkChangeRef.current?.(cropped.dataUrl)
+    const nextPlacement = screenRectToPdfPlacement(
+      cropped.left,
+      cropped.top,
+      cropped.width,
+      cropped.height,
+      metrics.displayWidth,
+      metrics.displayHeight,
+      metrics.pdfWidth,
+      metrics.pdfHeight,
+      currentPageRef.current,
+    )
+    onPlacementRef.current?.(nextPlacement, metrics)
+  }, [])
+
+  const clearInk = useCallback((notify: boolean) => {
+    strokesRef.current = []
+    drawingRef.current = false
+    const canvas = inkCanvasRef.current
+    const metrics = metricsRef.current
+    if (canvas && metrics) {
+      const ctx = canvas.getContext('2d')
+      ctx?.clearRect(0, 0, metrics.displayWidth, metrics.displayHeight)
+    }
+    if (notify && drawOnPdfRef.current) {
+      onInkChangeRef.current?.(null)
+    }
+  }, [])
 
   // Keep the overlay in sync when placement changes — do NOT re-render the PDF canvas.
   useEffect(() => {
@@ -190,7 +310,9 @@ export default function PdfDocumentViewer({
     } else {
       setScreenPlacement(null)
     }
-  }, [pdfDoc, currentPage])
+
+    setupInkCanvas()
+  }, [pdfDoc, currentPage, setupInkCanvas])
 
   useEffect(() => {
     let cancelled = false
@@ -211,11 +333,24 @@ export default function PdfDocumentViewer({
     return () => window.removeEventListener('resize', handleWindowResize)
   }, [renderPage])
 
+  useEffect(() => {
+    clearInk(true)
+    setupInkCanvas()
+  }, [currentPage, inkResetKey, clearInk, setupInkCanvas])
+
+  useEffect(() => {
+    if (!drawOnPdf) {
+      drawingRef.current = false
+      return
+    }
+    setupInkCanvas()
+  }, [drawOnPdf, setupInkCanvas])
+
   const placeSignatureAtPoint = (
     clientX: number,
     clientY: number,
   ) => {
-    if (!placementMode || !onPlacement || !metricsRef.current) return
+    if (!placementMode || drawOnPdf || !onPlacement || !metricsRef.current) return
 
     const canvas = canvasRef.current
     if (!canvas) return
@@ -246,8 +381,59 @@ export default function PdfDocumentViewer({
   }
 
   const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
-    if (resizeSessionRef.current) return
+    if (drawOnPdf || resizeSessionRef.current) return
     placeSignatureAtPoint(event.clientX, event.clientY)
+  }
+
+  const getInkPoint = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = inkCanvasRef.current
+    const metrics = metricsRef.current
+    if (!canvas || !metrics) return null
+    const rect = canvas.getBoundingClientRect()
+    const x = event.clientX - rect.left
+    const y = event.clientY - rect.top
+    return {
+      cssX: x,
+      cssY: y,
+      nx: metrics.displayWidth > 0 ? x / metrics.displayWidth : 0,
+      ny: metrics.displayHeight > 0 ? y / metrics.displayHeight : 0,
+    }
+  }
+
+  const handleInkPointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!drawOnPdf) return
+    event.preventDefault()
+    const canvas = inkCanvasRef.current
+    const ctx = canvas?.getContext('2d')
+    const point = getInkPoint(event)
+    if (!canvas || !ctx || !point) return
+
+    drawingRef.current = true
+    canvas.setPointerCapture(event.pointerId)
+    strokesRef.current.push([{ x: point.nx, y: point.ny }])
+    ctx.beginPath()
+    ctx.moveTo(point.cssX, point.cssY)
+  }
+
+  const handleInkPointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!drawingRef.current) return
+    const canvas = inkCanvasRef.current
+    const ctx = canvas?.getContext('2d')
+    const point = getInkPoint(event)
+    if (!canvas || !ctx || !point) return
+
+    const stroke = strokesRef.current[strokesRef.current.length - 1]
+    stroke?.push({ x: point.nx, y: point.ny })
+    ctx.lineTo(point.cssX, point.cssY)
+    ctx.stroke()
+  }
+
+  const finishInkStroke = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!drawingRef.current) return
+    drawingRef.current = false
+    const canvas = inkCanvasRef.current
+    canvas?.releasePointerCapture(event.pointerId)
+    emitInk()
   }
 
   const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
@@ -315,7 +501,7 @@ export default function PdfDocumentViewer({
     event: React.PointerEvent<HTMLButtonElement>,
     handle: ResizeHandle,
   ) => {
-    if (!placementMode || !placement) return
+    if (!placementMode || !placement || drawOnPdf) return
     event.preventDefault()
     event.stopPropagation()
 
@@ -408,7 +594,9 @@ export default function PdfDocumentViewer({
       {placementMode && (
         <p className="mb-2 text-xs text-emerald-600 font-medium">
           {placementHint
-            ?? 'Click to place your signature, then drag the corners to resize'}
+            ?? (drawOnPdf
+              ? 'Draw your signature on the document'
+              : 'Click to place your signature, then drag the corners to resize')}
         </p>
       )}
 
@@ -422,9 +610,20 @@ export default function PdfDocumentViewer({
           <canvas
             ref={canvasRef}
             onClick={handleCanvasClick}
-            className={placementMode ? 'cursor-crosshair' : 'cursor-default'}
+            className={placementMode && !drawOnPdf ? 'cursor-crosshair' : 'cursor-default'}
           />
-          {screenPlacement && placement?.page === currentPage && (
+          {drawOnPdf && (
+            <canvas
+              ref={inkCanvasRef}
+              className="absolute inset-0 touch-none cursor-crosshair"
+              onPointerDown={handleInkPointerDown}
+              onPointerMove={handleInkPointerMove}
+              onPointerUp={finishInkStroke}
+              onPointerLeave={finishInkStroke}
+              onPointerCancel={finishInkStroke}
+            />
+          )}
+          {!drawOnPdf && screenPlacement && placement?.page === currentPage && (
             <div
               className={`absolute border-2 border-emerald-500 bg-emerald-50/40 overflow-visible ${
                 placementMode ? 'pointer-events-auto' : 'pointer-events-none'
