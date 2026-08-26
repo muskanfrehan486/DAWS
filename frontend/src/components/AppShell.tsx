@@ -76,7 +76,7 @@ export default function AppShell({
           </div>
           <div>
             <div className="text-white font-bold text-[13px] leading-tight">
-              DocFlow
+              Ideas Flow
             </div>
             <div className="text-slate-400 text-[10px] leading-tight">
               Workflow Management

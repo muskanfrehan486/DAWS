@@ -24,6 +24,7 @@ const actionStyles: Record<AuditActionLabel, string> = {
   Approved: 'bg-emerald-50 text-emerald-700',
   Rejected: 'bg-red-50 text-red-700',
   'Revision Requested': 'bg-violet-50 text-violet-700',
+  'Step Skipped': 'bg-amber-50 text-amber-700',
   'Document Uploaded': 'bg-emerald-50 text-emerald-700',
   'Document Resubmitted': 'bg-sky-50 text-sky-700',
   'Document Deleted': 'bg-slate-100 text-slate-600',

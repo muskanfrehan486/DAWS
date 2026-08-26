@@ -20,7 +20,7 @@ export interface ApiSupportingDocument {
   uploadedAt: string
 }
 
-export interface ApiDocumentDetail extends ApiDocument {
+export interface ApiDocumentDetail extends Omit<ApiDocument, 'currentStep' | 'workflow'> {
   versions: ApiDocumentVersion[]
   supportingDocuments?: ApiSupportingDocument[]
   approvalChain: {

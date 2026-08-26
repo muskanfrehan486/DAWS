@@ -41,6 +41,7 @@ export default function PreparerSignModal({
   const [uploadingSignature, setUploadingSignature] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [inkResetKey, setInkResetKey] = useState(0)
 
   const loadSavedSignature = useCallback(async () => {
     setLoadingSignature(true)
@@ -66,6 +67,7 @@ export default function PreparerSignModal({
       setSavedSignatureUrl(null)
       setSubmitError(null)
       setUploadError(null)
+      setInkResetKey(key => key + 1)
       return
     }
 
@@ -86,6 +88,27 @@ export default function PreparerSignModal({
     setSubmitError(null)
   }
 
+  const handleInkChange = (dataUrl: string | null) => {
+    setSignatureImage(dataUrl)
+    if (!dataUrl) setPlacement(null)
+  }
+
+  const handleModeChange = (mode: SignatureMode) => {
+    setSignatureMode(mode)
+    setPlacement(null)
+    setSubmitError(null)
+    if (mode === 'draw') {
+      setSignatureImage(null)
+      setInkResetKey(key => key + 1)
+    }
+  }
+
+  const handleClearInk = () => {
+    setInkResetKey(key => key + 1)
+    setSignatureImage(null)
+    setPlacement(null)
+  }
+
   const handleUploadSavedSignature = async (file: File) => {
     setUploadingSignature(true)
     setUploadError(null)
@@ -104,14 +127,18 @@ export default function PreparerSignModal({
 
   const handleConfirm = async () => {
     if (!placement) {
-      setSubmitError('Click or drag your signature onto the document to choose placement.')
+      setSubmitError(
+        signatureMode === 'saved'
+          ? 'Click or drag your signature onto the document to choose placement.'
+          : 'Draw your signature on the document before submitting.',
+      )
       return
     }
     if (!signatureImage) {
       setSubmitError(
         signatureMode === 'saved'
           ? 'Upload or select your saved signature before submitting.'
-          : 'Draw your signature before submitting.',
+          : 'Draw your signature on the document before submitting.',
       )
       return
     }
@@ -137,7 +164,7 @@ export default function PreparerSignModal({
   const placementHint =
     signatureMode === 'saved'
       ? 'Drag or click to place your signature, then drag the corner handles to resize'
-      : 'Click to place your signature, then drag the corner handles to resize'
+      : 'Draw your signature anywhere on the document'
 
   return (
     <div
@@ -178,15 +205,21 @@ export default function PreparerSignModal({
                 signaturePreviewUrl={signatureImage}
                 allowSignatureDrop={signatureMode === 'saved' && Boolean(savedSignatureUrl)}
                 placementHint={placementHint}
+                drawOnPdf={signatureMode === 'draw'}
+                inkResetKey={inkResetKey}
+                onInkChange={handleInkChange}
               />
 
               <div className="space-y-4">
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                   <p className="text-xs font-medium text-slate-700 mb-2">Instructions</p>
                   <ol className="text-xs text-slate-500 space-y-1.5 list-decimal list-inside">
-                    <li>Choose to draw or use your saved signature</li>
-                    <li>Click or drag your signature onto the PDF</li>
-                    <li>Drag the corner handles to resize</li>
+                    <li>Choose to draw on the PDF or use your saved signature</li>
+                    <li>
+                      {signatureMode === 'saved'
+                        ? 'Click or drag your signature onto the PDF, then resize'
+                        : 'Draw your signature anywhere on the page'}
+                    </li>
                     <li>Confirm to submit into the approval workflow</li>
                   </ol>
                 </div>
@@ -199,13 +232,14 @@ export default function PreparerSignModal({
                 ) : (
                   <SignatureInput
                     mode={signatureMode}
-                    onModeChange={setSignatureMode}
+                    onModeChange={handleModeChange}
                     onChange={setSignatureImage}
                     savedSignatureUrl={savedSignatureUrl}
                     hasSavedSignature={Boolean(savedSignatureUrl)}
                     onUploadSavedSignature={handleUploadSavedSignature}
                     uploading={uploadingSignature}
                     uploadError={uploadError}
+                    onClearInk={handleClearInk}
                   />
                 )}
 

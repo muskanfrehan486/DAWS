@@ -43,18 +43,6 @@ export async function createUser(payload: UpdateUserPayload) {
   return res.json() as Promise<User>
 }
 
-export async function fetchUser(id: string) {
-  const res = await fetch(`/api/admin/users/${id}`, {
-    headers: {
-      ...authHeaders(),
-    },
-  })
-  if (!res.ok) {
-    throw new Error(await parseApiError(res))
-  }
-  return res.json() as Promise<User>
-}
-
 export async function updateUser(id: string, payload: UpdateUserPayload) {
   const res = await fetch(`/api/admin/users/${id}`, {
     method: 'PATCH',

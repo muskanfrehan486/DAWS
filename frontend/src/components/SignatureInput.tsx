@@ -1,6 +1,5 @@
 import { Eraser, Loader2, Upload } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import SignaturePad from './SignaturePad'
 
 export type SignatureMode = 'draw' | 'saved'
 
@@ -13,6 +12,7 @@ interface SignatureInputProps {
   onUploadSavedSignature: (file: File) => Promise<void>
   uploading?: boolean
   uploadError?: string | null
+  onClearInk?: () => void
 }
 
 export default function SignatureInput({
@@ -24,6 +24,7 @@ export default function SignatureInput({
   onUploadSavedSignature,
   uploading = false,
   uploadError = null,
+  onClearInk,
 }: SignatureInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
@@ -96,7 +97,22 @@ export default function SignatureInput({
       </div>
 
       {mode === 'draw' ? (
-        <SignaturePad onChange={onChange} />
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-medium text-slate-700">Draw on the document</p>
+            <button
+              type="button"
+              onClick={onClearInk}
+              className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
+            >
+              <Eraser size={13} />
+              Clear
+            </button>
+          </div>
+          <p className="text-[11px] text-slate-500">
+            Sign anywhere on the PDF with your mouse, stylus, or finger. Use Clear to start over.
+          </p>
+        </div>
       ) : (
         <div className="space-y-3">
           {hasSavedSignature && savedSignatureUrl ? (

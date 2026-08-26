@@ -67,6 +67,47 @@ export function pdfPlacementToScreen(
   }
 }
 
+/** Map a CSS-pixel rectangle on the rendered page to PDF placement (top-left origin). */
+export function screenRectToPdfPlacement(
+  left: number,
+  top: number,
+  width: number,
+  height: number,
+  displayWidth: number,
+  displayHeight: number,
+  pdfWidth: number,
+  pdfHeight: number,
+  page: number,
+): PdfPlacement {
+  const topLeft = screenPointToPdf(left, top, displayWidth, displayHeight, pdfWidth, pdfHeight)
+  const bottomRight = screenPointToPdf(
+    left + width,
+    top + height,
+    displayWidth,
+    displayHeight,
+    pdfWidth,
+    pdfHeight,
+  )
+
+  let signatureX = Math.max(0, topLeft.x)
+  let signatureY = Math.max(0, topLeft.y)
+  let signatureWidth = Math.max(1, bottomRight.x - topLeft.x)
+  let signatureHeight = Math.max(1, bottomRight.y - topLeft.y)
+
+  signatureWidth = Math.min(signatureWidth, pdfWidth)
+  signatureHeight = Math.min(signatureHeight, pdfHeight)
+  signatureX = Math.max(0, Math.min(signatureX, pdfWidth - signatureWidth))
+  signatureY = Math.max(0, Math.min(signatureY, pdfHeight - signatureHeight))
+
+  return {
+    page,
+    signatureX,
+    signatureY,
+    signatureWidth,
+    signatureHeight,
+  }
+}
+
 /** Map a screen point on the canvas to PDF coordinates (top-left origin). */
 export function screenPointToPdf(
   screenX: number,
