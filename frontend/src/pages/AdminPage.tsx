@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Users, Plus, Search, Edit2, Trash2, Eye, EyeOff, Upload, Download, Loader2 } from 'lucide-react';
 import Modal from '../components/Modal.tsx';
-import { loadUsers } from '../data/sampleData';
 import {
     bulkCreateUsers,
     createUser,
     deleteUser,
     downloadUserImportTemplate,
     fetchDepartments,
+    fetchUsers,
     updateUser,
 } from '../services/AdminApi.ts';
 import type { BulkUserImportResult } from '../types/admin.ts';
@@ -34,7 +34,7 @@ export default function Administration() {
     const [importResult, setImportResult] = useState<BulkUserImportResult | null>(null);
 
     useEffect(() => {
-        loadUsers()
+        fetchUsers()
             .then(setUsers)
             .catch(error => {
                 console.error('Failed to load users', error);
@@ -113,7 +113,7 @@ export default function Administration() {
             });
         }
 
-        const updatedUsers = await loadUsers();
+        const updatedUsers = await fetchUsers();
         setUsers(updatedUsers);
         setAddUserModal(false);
         setEditingUser(null);
@@ -147,7 +147,7 @@ export default function Administration() {
             setImportResult(result);
 
             if (result.created > 0) {
-                const updatedUsers = await loadUsers();
+                const updatedUsers = await fetchUsers();
                 setUsers(updatedUsers);
             }
         } catch (err) {
@@ -165,7 +165,7 @@ export default function Administration() {
 
         try {
             await deleteUser(deletingUser.id);
-            const updatedUsers = await loadUsers();
+            const updatedUsers = await fetchUsers();
             setUsers(updatedUsers);
             setDeletingUser(null);
         } catch (err) {

@@ -25,8 +25,4 @@
   .doc-table-row {
     @apply hover:bg-slate-50/80 transition-colors;
   }
-
-  .brand-gradient {
-    background: linear-gradient(135deg, #22c55e 0%, #15803d 100%);
-  }
 }

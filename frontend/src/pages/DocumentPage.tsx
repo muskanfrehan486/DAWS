@@ -4,7 +4,6 @@ import {
   Filter,
   FileText,
   Eye,
-  GitBranch,
   ChevronDown,
   X,
   Loader2,
