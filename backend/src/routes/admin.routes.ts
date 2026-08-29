@@ -5,6 +5,8 @@ import { validate } from "../middleware/validate";
 import { asyncHandler } from "../utils/asyncHandler";
 import { adminService } from "../services/admin.service";
 import { updateAdminUserSchema, createAdminUserSchema } from "../schemas/admin.schema";
+import { uploadSpreadsheet } from "../middleware/upload";
+import { errors } from "../lib/errors";
 
 const router = Router();
 
@@ -25,6 +27,20 @@ router.get(
   asyncHandler(async (_req, res) => {
     const users = await adminService.listUsers();
     res.json(users);
+  })
+);
+
+router.post(
+  "/users/bulk",
+  requireAdmin,
+  uploadSpreadsheet.single("file"),
+  asyncHandler(async (req, res) => {
+    if (!req.file) {
+      throw errors.badRequest("A CSV or Excel file is required");
+    }
+
+    const result = await adminService.bulkCreateUsers(req.file);
+    res.status(201).json(result);
   })
 );
 
