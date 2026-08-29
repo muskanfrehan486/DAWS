@@ -69,3 +69,33 @@ export const uploadSignature = multer({
     fileSize: 2 * 1024 * 1024,
   },
 });
+
+const SPREADSHEET_EXTENSIONS = /\.(csv|xlsx|xls)$/i;
+const SPREADSHEET_MIME_TYPES = new Set([
+  "text/csv",
+  "application/csv",
+  "text/plain",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/octet-stream",
+]);
+
+const spreadsheetFileFilter: multer.Options["fileFilter"] = (_req, file, cb) => {
+  const extensionOk = SPREADSHEET_EXTENSIONS.test(file.originalname);
+  const mimeOk = !file.mimetype || SPREADSHEET_MIME_TYPES.has(file.mimetype);
+
+  if (!extensionOk || !mimeOk) {
+    return cb(errors.badRequest("Upload a .csv, .xlsx, or .xls file"));
+  }
+
+  cb(null, true);
+};
+
+export const uploadSpreadsheet = multer({
+  storage,
+  fileFilter: spreadsheetFileFilter,
+  limits: {
+    fileSize: 2 * 1024 * 1024,
+    files: 1,
+  },
+});

@@ -1,7 +1,42 @@
 import { prisma } from "../prisma";
-import { errors } from "../lib/errors";
+import { AppError, errors } from "../lib/errors";
 import { supabaseAdmin } from "../lib/supabase";
+import { parseSpreadsheet } from "../utils/spreadsheet";
 import type { UpdateAdminUserInput, CreateAdminUserInput } from "../schemas/admin.schema";
+import type { LoginRole } from "../generated/prisma/client";
+
+type BulkUserImportFailure = {
+  row: number;
+  email?: string;
+  error: string;
+};
+
+type SpreadsheetUpload = {
+  buffer: Buffer;
+  originalname: string;
+};
+
+function normalizeHeader(key: string): string {
+  return key.replace(/^\uFEFF/, "").trim().toLowerCase().replace(/[\s_-]+/g, "");
+}
+
+function cell(row: Record<string, string>, ...keys: string[]): string {
+  for (const key of keys) {
+    const value = row[key];
+    if (value !== undefined && value !== "") {
+      return value;
+    }
+  }
+  return "";
+}
+
+function parseLoginRole(value: string): LoginRole | null {
+  const normalized = value.trim().toUpperCase();
+  if (normalized === "USER" || normalized === "ADMINISTRATOR") {
+    return normalized;
+  }
+  return null;
+}
 
 class AdminService {
   async listUsers() {
@@ -62,33 +97,136 @@ class AdminService {
       throw errors.internal("Failed to create authentication user");
     }
 
-    const user = await prisma.user.create({
-      data: {
-        id: authUser.id,
-        email: input.email,
-        firstName: input.firstName,
-        lastName: input.lastName,
-        departmentId: input.departmentId,
-        loginRole: input.loginRole,
-      },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        loginRole: true,
-        department: {
-          select: {
-            id: true,
-            name: true,
-          },
+    try {
+      return await prisma.user.create({
+        data: {
+          id: authUser.id,
+          email: input.email,
+          firstName: input.firstName,
+          lastName: input.lastName,
+          departmentId: input.departmentId,
+          loginRole: input.loginRole,
         },
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          loginRole: true,
+          department: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+    } catch (error) {
+      await supabaseAdmin.auth.admin.deleteUser(authUser.id);
+      throw error;
+    }
+  }
 
-    return user;
+  async bulkCreateUsers(file: SpreadsheetUpload) {
+    const rows = parseSpreadsheet(file.buffer, file.originalname);
+
+    if (rows.length === 0) {
+      throw errors.badRequest("The spreadsheet contains no user rows");
+    }
+
+    const departments = await prisma.department.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true },
+    });
+    const departmentsByName = new Map(
+      departments.map((department) => [department.name.trim().toLowerCase(), department])
+    );
+
+    const seenEmails = new Set<string>();
+    const failed: BulkUserImportFailure[] = [];
+    let created = 0;
+
+    for (let index = 0; index < rows.length; index += 1) {
+      const rowNumber = index + 2;
+      const raw = rows[index];
+      const normalized: Record<string, string> = {};
+
+      for (const [key, value] of Object.entries(raw)) {
+        normalized[normalizeHeader(key)] = value.trim();
+      }
+
+      const firstName = cell(normalized, "firstname");
+      const lastName = cell(normalized, "lastname");
+      const email = cell(normalized, "email");
+      const password = cell(normalized, "password");
+      const departmentName = cell(normalized, "department", "departmentname");
+      const roleValue = cell(normalized, "role", "loginrole");
+
+      if (
+        !firstName &&
+        !lastName &&
+        !email &&
+        !password &&
+        !departmentName &&
+        !roleValue
+      ) {
+        continue;
+      }
+
+      try {
+        if (!firstName || !lastName || !email || !password || !departmentName || !roleValue) {
+          throw errors.badRequest(
+            "Each row needs firstName, lastName, email, password, department, and role"
+          );
+        }
+
+        const emailKey = email.toLowerCase();
+        if (seenEmails.has(emailKey)) {
+          throw errors.badRequest("Duplicate email in this file");
+        }
+        seenEmails.add(emailKey);
+
+        if (password.length < 6) {
+          throw errors.badRequest("Password must be at least 6 characters");
+        }
+
+        const loginRole = parseLoginRole(roleValue);
+        if (!loginRole) {
+          throw errors.badRequest("Role must be USER or ADMINISTRATOR");
+        }
+
+        const department = departmentsByName.get(departmentName.toLowerCase());
+        if (!department) {
+          throw errors.badRequest(
+            `Department "${departmentName}" was not found. Names must match an existing department.`
+          );
+        }
+
+        await this.createUser({
+          email,
+          password,
+          firstName,
+          lastName,
+          departmentId: department.id,
+          loginRole,
+        });
+        created += 1;
+      } catch (error) {
+        failed.push({
+          row: rowNumber,
+          email: email || undefined,
+          error: error instanceof AppError ? error.message : "Failed to create user",
+        });
+      }
+    }
+
+    if (created === 0 && failed.length === 0) {
+      throw errors.badRequest("The spreadsheet contains no user rows");
+    }
+
+    return { created, failed };
   }
 
   async getUser(userId: string) {
