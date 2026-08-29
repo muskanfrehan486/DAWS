@@ -3,7 +3,40 @@ import { AppError, errors } from "../lib/errors";
 import { supabaseAdmin } from "../lib/supabase";
 import { parseSpreadsheet } from "../utils/spreadsheet";
 import type { UpdateAdminUserInput, CreateAdminUserInput } from "../schemas/admin.schema";
-import type { LoginRole } from "../generated/prisma/client";
+import { Prisma, type LoginRole } from "../generated/prisma/client";
+
+function isDuplicateEmailAuthError(error: { message?: string; code?: string }): boolean {
+  const code = (error.code ?? "").toLowerCase();
+  const message = (error.message ?? "").toLowerCase();
+  return (
+    code.includes("email_exists") ||
+    code.includes("user_already_exists") ||
+    message.includes("already been registered") ||
+    message.includes("already registered") ||
+    message.includes("already exists")
+  );
+}
+
+function throwFriendlyAuthError(error: { message: string; code?: string }): never {
+  if (isDuplicateEmailAuthError(error)) {
+    throw errors.conflict("A user with this email already exists");
+  }
+  throw errors.badRequest(error.message);
+}
+
+async function assertEmailAvailable(email: string, excludeUserId?: string) {
+  const existing = await prisma.user.findFirst({
+    where: {
+      email: { equals: email, mode: "insensitive" },
+      ...(excludeUserId ? { NOT: { id: excludeUserId } } : {}),
+    },
+    select: { id: true },
+  });
+
+  if (existing) {
+    throw errors.conflict("A user with this email already exists");
+  }
+}
 
 type BulkUserImportFailure = {
   row: number;
@@ -81,6 +114,8 @@ class AdminService {
       throw errors.badRequest("Department not found");
     }
 
+    await assertEmailAvailable(input.email);
+
     const { data, error } = await supabaseAdmin.auth.admin.createUser({
       email: input.email,
       password: input.password,
@@ -88,7 +123,7 @@ class AdminService {
     });
 
     if (error) {
-      throw errors.badRequest(error.message);
+      throwFriendlyAuthError(error);
     }
 
     const authUser = data.user;
@@ -125,6 +160,11 @@ class AdminService {
       });
     } catch (error) {
       await supabaseAdmin.auth.admin.deleteUser(authUser.id);
+
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        throw errors.conflict("A user with this email already exists");
+      }
+
       throw error;
     }
   }
@@ -176,21 +216,36 @@ class AdminService {
       }
 
       try {
-        if (!firstName || !lastName || !email || !password || !departmentName || !roleValue) {
-          throw errors.badRequest(
-            "Each row needs firstName, lastName, email, password, department, and role"
-          );
+        if (!firstName) {
+          throw errors.badRequest("First name is required");
+        }
+        if (!lastName) {
+          throw errors.badRequest("Last name is required");
+        }
+        if (!email) {
+          throw errors.badRequest("Email is required");
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          throw errors.badRequest("Enter a valid email address");
+        }
+        if (!password) {
+          throw errors.badRequest("Password is required");
+        }
+        if (password.length < 6) {
+          throw errors.badRequest("Password must be at least 6 characters");
+        }
+        if (!departmentName) {
+          throw errors.badRequest("Department is required");
+        }
+        if (!roleValue) {
+          throw errors.badRequest("Role is required");
         }
 
         const emailKey = email.toLowerCase();
         if (seenEmails.has(emailKey)) {
-          throw errors.badRequest("Duplicate email in this file");
+          throw errors.conflict("A user with this email already exists in this file");
         }
         seenEmails.add(emailKey);
-
-        if (password.length < 6) {
-          throw errors.badRequest("Password must be at least 6 characters");
-        }
 
         const loginRole = parseLoginRole(roleValue);
         if (!loginRole) {
@@ -275,6 +330,10 @@ class AdminService {
       }
     }
 
+    if (input.email) {
+      await assertEmailAvailable(input.email, userId);
+    }
+
     const authUpdates: Record<string, string> = {};
 
     if (input.email) authUpdates.email = input.email;
@@ -287,37 +346,42 @@ class AdminService {
       );
 
       if (error) {
-        throw errors.badRequest(error.message);
+        throwFriendlyAuthError(error);
       }
     }
 
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data: {
-        ...(input.email ? { email: input.email } : {}),
-        ...(input.firstName ? { firstName: input.firstName } : {}),
-        ...(input.lastName ? { lastName: input.lastName } : {}),
-        ...(input.departmentId ? { departmentId: input.departmentId } : {}),
-        ...(input.loginRole ? { loginRole: input.loginRole } : {}),
-      },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        loginRole: true,
-        department: {
-          select: {
-            id: true,
-            name: true,
-          },
+    try {
+      return await prisma.user.update({
+        where: { id: userId },
+        data: {
+          ...(input.email ? { email: input.email } : {}),
+          ...(input.firstName ? { firstName: input.firstName } : {}),
+          ...(input.lastName ? { lastName: input.lastName } : {}),
+          ...(input.departmentId ? { departmentId: input.departmentId } : {}),
+          ...(input.loginRole ? { loginRole: input.loginRole } : {}),
         },
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
-
-    return updatedUser;
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          loginRole: true,
+          department: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        throw errors.conflict("A user with this email already exists");
+      }
+      throw error;
+    }
   }
 
   async deleteUser(userId: string, actorId: string) {

@@ -15,6 +15,64 @@ import type { Department } from '../services/AdminApi.ts';
 
 type AdminTab = 'users';
 
+type UserForm = {
+    firstName: string;
+    lastName: string;
+    email: string;
+    password: string;
+    departmentId: string;
+    role: string;
+};
+
+type UserFormErrors = Partial<Record<keyof UserForm, string>>;
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function validateUserForm(form: UserForm, isEdit: boolean): UserFormErrors {
+    const errors: UserFormErrors = {};
+
+    if (!form.firstName.trim()) {
+        errors.firstName = 'First name is required';
+    }
+    if (!form.lastName.trim()) {
+        errors.lastName = 'Last name is required';
+    }
+    if (!form.email.trim()) {
+        errors.email = 'Email is required';
+    } else if (!EMAIL_PATTERN.test(form.email.trim())) {
+        errors.email = 'Enter a valid email address';
+    }
+    if (!isEdit && !form.password) {
+        errors.password = 'Password is required';
+    } else if (form.password && form.password.length < 6) {
+        errors.password = 'Password must be at least 6 characters';
+    }
+    if (!form.departmentId) {
+        errors.departmentId = 'Department is required';
+    }
+
+    return errors;
+}
+
+function fieldFromApiMessage(message: string): keyof UserForm | null {
+    const lower = message.toLowerCase();
+    if (lower.includes('first name')) return 'firstName';
+    if (lower.includes('last name')) return 'lastName';
+    if (lower.includes('email')) return 'email';
+    if (lower.includes('password')) return 'password';
+    if (lower.includes('department')) return 'departmentId';
+    if (lower.includes('role')) return 'role';
+    return null;
+}
+
+function inputClass(hasError: boolean) {
+    return `w-full px-3 py-2 text-sm rounded-lg focus:outline-none ${
+        hasError
+            ? 'border border-red-400 focus:border-red-500 bg-red-50/40'
+            : 'border border-slate-300 focus:border-emerald-500'
+    }`;
+}
+
 export default function Administration() {
     const [activeTab, setActiveTab] = useState<AdminTab>('users');
     const [search, setSearch] = useState('');
@@ -32,6 +90,9 @@ export default function Administration() {
     const [importLoading, setImportLoading] = useState(false);
     const [importError, setImportError] = useState('');
     const [importResult, setImportResult] = useState<BulkUserImportResult | null>(null);
+    const [formErrors, setFormErrors] = useState<UserFormErrors>({});
+    const [saveError, setSaveError] = useState('');
+    const [saveLoading, setSaveLoading] = useState(false);
 
     useEffect(() => {
         fetchUsers()
@@ -59,13 +120,14 @@ export default function Administration() {
     const filteredUsers = users.filter((u: any) =>
         u.firstName.toLowerCase().includes(search.toLowerCase()) ||
         u.email.toLowerCase().includes(search.toLowerCase()) ||
-        u.department.name.toLowerCase().includes(search.toLowerCase())
+        (u.department?.name ?? '').toLowerCase().includes(search.toLowerCase())
     );
 
     const handleAddUser = () => {
-        console.log("Before opening modal:", search);
         setEditingUser(null);
         setShowPassword(false);
+        setFormErrors({});
+        setSaveError('');
         setForm({
             firstName: "",
             lastName: "",
@@ -80,6 +142,8 @@ export default function Administration() {
     const handleEditUser = (user: any) => {
         setEditingUser(user);
         setShowPassword(false);
+        setFormErrors({});
+        setSaveError('');
         setForm({
             firstName: user.firstName,
             lastName: user.lastName,
@@ -91,33 +155,65 @@ export default function Administration() {
         setAddUserModal(true);
     };
 
-    const handleSaveUser = async () => {
-        if (editingUser) {
-            await updateUser(editingUser.id, {
-                email: form.email,
-                firstName: form.firstName,
-                lastName: form.lastName,
-                departmentId: form.departmentId,
-                loginRole: form.role,
-                ...(form.password ? { password: form.password } : {}),
-            });
+    const updateFormField = <K extends keyof UserForm>(field: K, value: UserForm[K]) => {
+        setForm((prev) => ({ ...prev, [field]: value }));
+        setFormErrors((prev) => ({ ...prev, [field]: undefined }));
+        setSaveError('');
+    };
 
-        } else {
-            await createUser({
-                email: form.email,
-                password: form.password,
-                firstName: form.firstName,
-                lastName: form.lastName,
-                departmentId: form.departmentId,
-                loginRole: form.role,
-            });
+    const handleSaveUser = async () => {
+        const errors = validateUserForm(form, Boolean(editingUser));
+        if (Object.keys(errors).length > 0) {
+            setFormErrors(errors);
+            setSaveError('Please fix the highlighted fields and try again.');
+            return;
         }
 
-        const updatedUsers = await fetchUsers();
-        setUsers(updatedUsers);
-        setAddUserModal(false);
-        setEditingUser(null);
-        setShowPassword(false);
+        setSaveLoading(true);
+        setSaveError('');
+        setFormErrors({});
+
+        try {
+            if (editingUser) {
+                await updateUser(editingUser.id, {
+                    email: form.email.trim(),
+                    firstName: form.firstName.trim(),
+                    lastName: form.lastName.trim(),
+                    departmentId: form.departmentId,
+                    loginRole: form.role,
+                    ...(form.password ? { password: form.password } : {}),
+                });
+            } else {
+                await createUser({
+                    email: form.email.trim(),
+                    password: form.password,
+                    firstName: form.firstName.trim(),
+                    lastName: form.lastName.trim(),
+                    departmentId: form.departmentId,
+                    loginRole: form.role,
+                });
+            }
+
+            try {
+                const updatedUsers = await fetchUsers();
+                setUsers(updatedUsers);
+            } catch {
+                // User was saved; list refresh can fail independently.
+            }
+
+            setAddUserModal(false);
+            setEditingUser(null);
+            setShowPassword(false);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Failed to save user';
+            const field = fieldFromApiMessage(message);
+            if (field) {
+                setFormErrors({ [field]: message });
+            }
+            setSaveError(message);
+        } finally {
+            setSaveLoading(false);
+        }
     };
 
     const handleDeleteUser = (user: any) => {
@@ -174,9 +270,7 @@ export default function Administration() {
             setDeleteLoading(false);
         }
     };
-    useEffect(() => {
-        console.log("search state:", search);
-    }, [search]);
+
     return (
         <div className="p-6">
             <div className="mb-6">
@@ -267,7 +361,7 @@ export default function Administration() {
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3 text-sm text-slate-600">{user.email}</td>
-                                            <td className="px-4 py-3 text-sm text-slate-600">{user.department.name}</td>
+                                            <td className="px-4 py-3 text-sm text-slate-600">{user.department?.name ?? '—'}</td>
                                             <td className="px-4 py-3">
                                                 <span className={`text-xs font-semibold px-2 py-0.5 rounded ${user.loginRole === 'ADMINISTRATOR'
                                                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
@@ -299,44 +393,56 @@ export default function Administration() {
             <Modal
                 open={addUserModal}
                 onClose={() => {
+                    if (saveLoading) return;
                     setAddUserModal(false);
                     setShowPassword(false);
+                    setFormErrors({});
+                    setSaveError('');
                 }}
                 title={editingUser ? 'Edit User' : 'Add New User'}
                 size="md"
             >
                 <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-3">
-                        <div >
+                        <div>
                             <label className="block text-xs font-medium text-slate-700 mb-1.5">First Name</label>
-                            <input type="text" value={form.firstName}
-                                onChange={(e) =>
-                                    setForm({
-                                        ...form,
-                                        firstName: e.target.value,
-                                    })
-                                } placeholder="First name" className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-emerald-500" />
+                            <input
+                                type="text"
+                                value={form.firstName}
+                                onChange={(e) => updateFormField('firstName', e.target.value)}
+                                placeholder="First name"
+                                className={inputClass(Boolean(formErrors.firstName))}
+                            />
+                            {formErrors.firstName && (
+                                <p className="mt-1 text-xs text-red-600">{formErrors.firstName}</p>
+                            )}
                         </div>
                         <div>
                             <label className="block text-xs font-medium text-slate-700 mb-1.5">Last Name</label>
-                            <input type="text" value={form.lastName}
-                                onChange={(e) =>
-                                    setForm({
-                                        ...form,
-                                        lastName: e.target.value,
-                                    })
-                                } placeholder="Last name" className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-emerald-500" />
+                            <input
+                                type="text"
+                                value={form.lastName}
+                                onChange={(e) => updateFormField('lastName', e.target.value)}
+                                placeholder="Last name"
+                                className={inputClass(Boolean(formErrors.lastName))}
+                            />
+                            {formErrors.lastName && (
+                                <p className="mt-1 text-xs text-red-600">{formErrors.lastName}</p>
+                            )}
                         </div>
                     </div>
                     <div>
                         <label className="block text-xs font-medium text-slate-700 mb-1.5">Email Address</label>
-                        <input type="email" value={form.email}
-                            onChange={(e) =>
-                                setForm({
-                                    ...form,
-                                    email: e.target.value,
-                                })
-                            } placeholder="user@company.com" className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-emerald-500" />
+                        <input
+                            type="email"
+                            value={form.email}
+                            onChange={(e) => updateFormField('email', e.target.value)}
+                            placeholder="user@company.com"
+                            className={inputClass(Boolean(formErrors.email))}
+                        />
+                        {formErrors.email && (
+                            <p className="mt-1 text-xs text-red-600">{formErrors.email}</p>
+                        )}
                     </div>
                     <div>
                         <label className="block text-xs font-medium text-slate-700 mb-1.5">
@@ -361,7 +467,7 @@ export default function Administration() {
                                         ? 'Leave blank to keep current password'
                                         : 'Enter password (min. 6 characters)'
                                 }
-                                className="w-full px-3 py-2 pr-10 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-emerald-500"
+                                className={`${inputClass(Boolean(formErrors.password))} pr-10`}
                             />
                             <button
                                 type="button"
@@ -372,49 +478,67 @@ export default function Administration() {
                                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                             </button>
                         </div>
+                        {formErrors.password && (
+                            <p className="mt-1 text-xs text-red-600">{formErrors.password}</p>
+                        )}
                     </div>
                     <div>
                         <label className="block text-xs font-medium text-slate-700 mb-1.5">Department</label>
                         <select
                             value={form.departmentId}
-                            onChange={(e) =>
-                                setForm({ ...form, departmentId: e.target.value })
-                            }
+                            onChange={(e) => updateFormField('departmentId', e.target.value)}
+                            className={inputClass(Boolean(formErrors.departmentId))}
                         >
                             <option value="">Select a department</option>
-
                             {departments.map((dept) => (
                                 <option key={dept.id} value={dept.id}>
                                     {dept.name}
                                 </option>
                             ))}
                         </select>
+                        {formErrors.departmentId && (
+                            <p className="mt-1 text-xs text-red-600">{formErrors.departmentId}</p>
+                        )}
                     </div>
                     <div>
                         <label className="block text-xs font-medium text-slate-700 mb-1.5">System Role</label>
                         <select
                             value={form.role}
-                            onChange={(e) =>
-                                setForm({
-                                    ...form,
-                                    role: e.target.value,
-                                })
-                            }
+                            onChange={(e) => updateFormField('role', e.target.value)}
+                            className={inputClass(Boolean(formErrors.role))}
                         >
                             <option value="USER">User</option>
                             <option value="ADMINISTRATOR">Administrator</option>
                         </select>
+                        {formErrors.role && (
+                            <p className="mt-1 text-xs text-red-600">{formErrors.role}</p>
+                        )}
                     </div>
+
+                    {saveError && (
+                        <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                            {saveError}
+                        </div>
+                    )}
+
                     <div className="flex gap-3 pt-1">
                         <button
                             type="button"
                             onClick={handleSaveUser}
-                            className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white"
+                            disabled={saveLoading}
+                            className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-60"
                             style={{ background: 'linear-gradient(135deg, #22c55e 0%, #15803d 100%)' }}
                         >
-                            {editingUser ? "Update User" : "Create User"}
+                            {saveLoading
+                                ? (editingUser ? 'Updating...' : 'Creating...')
+                                : (editingUser ? 'Update User' : 'Create User')}
                         </button>
-                        <button type="button" onClick={() => setAddUserModal(false)} className="flex-1 py-2.5 rounded-lg text-sm font-medium text-slate-600 border border-slate-300 hover:bg-slate-50">
+                        <button
+                            type="button"
+                            onClick={() => !saveLoading && setAddUserModal(false)}
+                            disabled={saveLoading}
+                            className="flex-1 py-2.5 rounded-lg text-sm font-medium text-slate-600 border border-slate-300 hover:bg-slate-50 disabled:opacity-60"
+                        >
                             Cancel
                         </button>
                     </div>
